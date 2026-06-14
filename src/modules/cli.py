@@ -5,7 +5,8 @@ set ROBOT_MCP=false for the local Ollama chat loop. Installed as the `pip-robot`
 console script, so `uvx --from git+<repo> pip-robot` runs it with no checkout.
 
     pip-robot                 # MCP server (default)
-    ROBOT_MCP=false pip-robot # chat with Pip
+    pip-robot ollama          # chat with Pip (local Ollama)
+    ROBOT_MCP=false pip-robot # same, via env
     pip-robot demo            # cycle every emotion on the panel
     pip-robot --no-display    # no hardware (test)
 """
@@ -35,6 +36,8 @@ def main():
     with Robot(no_display="--no-display" in args) as robot:
         if "demo" in args:
             robot.demo()
+        elif "ollama" in args or "chat" in args:
+            robot.run_chat()   # explicit chat, regardless of ROBOT_MCP
         elif mcp:
             from modules.mcp_server import serve
             serve(robot)   # MCP over stdio; Claude Code spawns and owns this process
