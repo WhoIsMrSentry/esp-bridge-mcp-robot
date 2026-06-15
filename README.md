@@ -150,7 +150,7 @@ straight from GitHub in a throwaway environment:
 
 ```bash
 claude mcp add --transport stdio --env ROBOT_MCP=true --scope user pip-robot \
-  -- uvx --from git+https://github.com/HamzaYslmn/esp-bridge-ai-robot pip-robot
+  -- uvx --from git+https://github.com/HamzaYslmn/esp-bridge-mcp-robot pip-robot
 ```
 
 That registers this `.mcp.json` for **every** project:
@@ -160,7 +160,7 @@ That registers this `.mcp.json` for **every** project:
   "mcpServers": {
     "pip-robot": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/HamzaYslmn/esp-bridge-ai-robot", "pip-robot"],
+      "args": ["--from", "git+https://github.com/HamzaYslmn/esp-bridge-mcp-robot", "pip-robot"],
       "env": { "ROBOT_MCP": "true" }
     }
   }
