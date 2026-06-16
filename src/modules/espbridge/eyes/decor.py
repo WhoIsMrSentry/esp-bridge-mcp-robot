@@ -398,51 +398,37 @@ def flask(d, W, H, now, ox=0.0, oy=0.0):  # test tube on 3 independent rhythms: 
             d.line(pts, fill=1, width=wdt, joint="curve")
 
 
-def rocket(d, W, H, now, ox=0.0, oy=0.0):  # 3-2-1 countdown, liftoff, smoke trail, banks off-top -- "deploying"
-    step, fly, gap = 0.7, 2.8, 0.5                       # countdown s/digit, slow arc, breath
-    t0 = 3 * step
-    ph = now % (t0 + fly + gap)
-    if ph < t0:                                          # T-minus: tick a 7-seg digit down at the pad
-        n = 3 - int(ph / step)
-        cx, cy, e = W - 12, H - 12, 6.5                 # centre + half-height of the digit
-        x0, y0, x1, y1, ym = cx - e * 0.55, cy - e, cx + e * 0.55, cy + e, cy
-        lit = {1: "bc", 2: "abged", 3: "abgcd"}[n]      # segments on for 3/2/1
-        for s, a, b in (("a", (x0, y0), (x1, y0)), ("b", (x1, y0), (x1, ym)), ("c", (x1, ym), (x1, y1)),
-                        ("d", (x0, y1), (x1, y1)), ("e", (x0, ym), (x0, y1)), ("f", (x0, y0), (x0, ym)),
-                        ("g", (x0, ym), (x1, ym))):
-            if s in lit:
-                d.line([a, b], fill=1, width=2)
-        return
-    tf = (ph - t0) / fly
-    if tf >= 1.0:                                        # gap -- pad's clear, nothing to draw
-        return
-    # normalized path: climb the right lane, then bank left across the top (eased moves overlap)
-    pos = lambda u: (0.90 + (-0.20 - 0.90) * smoothstep((u - 0.45) / 0.55),
-                     1.12 + (0.12 - 1.12) * smoothstep(u / 0.55))
-    fx, fy = pos(tf)
-    cx, cy = fx * W, fy * H
-    nx, ny = pos(min(1.0, tf + 0.02))                   # heading from the path tangent
-    ang = math.atan2(ny * H - cy, nx * W - cx)
-    ca, sa = math.cos(ang), math.sin(ang)
-    R = lambda px, py: (cx + px * ca - py * sa, cy + px * sa + py * ca)  # local (nose +x) -> screen
-    for k in range(1, 9):                                # a cloud of smoke trailing behind
-        if tf - k * 0.05 < 0:
-            break
-        sx, sy = pos(tf - k * 0.05)
-        sx, sy, rad = sx * W, sy * H, 1.0 + k * 0.7
-        j = math.sin(k * 2.3) * rad * 0.4               # deterministic puffiness
-        if k <= 3:
-            d.ellipse([sx - rad, sy - rad, sx + rad, sy + rad], fill=1)
-        else:
-            d.ellipse([sx - rad + j, sy - rad - j, sx + rad + j, sy + rad - j], outline=1)
-    flame = 4 + (math.sin(now * 24) + 1) * 2            # flickering exhaust
-    d.polygon([R(-5, -2), R(-5, 2), R(-5 - flame, 0)], fill=1)     # exhaust plume
-    d.polygon([R(-4, -3), R(-8, -6), R(-4, -1)], fill=1)          # top fin
-    d.polygon([R(-4, 3), R(-8, 6), R(-4, 1)], fill=1)             # bottom fin
-    d.polygon([R(3, -3), R(3, 3), R(-5, 3), R(-5, -3)], fill=1)   # body
-    d.polygon([R(8, 0), R(3, -3), R(3, 3)], fill=1)              # nose cone
-    wx, wy = R(0, 0)
-    d.ellipse([wx - 1.5, wy - 1.5, wx + 1.5, wy + 1.5], fill=0)  # porthole
+def deploy(d, W, H, now, ox=0.0, oy=0.0):  # the Docker whale -- a 'D' on its back stacked with containers, riding the swell -- "deploying"
+    wl, amp, k, w = H - 4, 2.2, 0.16, 1.7                          # waterline + a slow travelling swell
+    surf = lambda x: wl + amp * math.sin(k * x - w * now)          # the moving sea surface
+    cx = W / 2 + math.sin(now * 0.25) * 6                          # the whale drifts gently side to side
+    sy = surf(cx)                                                  # it floats at the surface (buoyancy)
+    pitch = math.degrees(math.atan(amp * k * math.cos(k * cx - w * now))) * 0.16  # a gentle roll with the swell
+
+    # paint the whale on a scratch layer: lets us pitch it, clip its belly at the water, then stamp
+    # a 1px black outline so its white hull stays distinct from the white eyes
+    lay = Image.new("1", (W, H), 0)
+    g = ImageDraw.Draw(lay)
+    deck = sy - 11                                                 # the flat deck -- the straight back of the 'D'
+    g.chord([cx - 24, deck - 13, cx + 16, deck + 13], 0, 180, fill=1)              # body: a 'D' laid on its back
+    g.polygon([(cx + 12, deck + 1), (cx + 24, deck - 10), (cx + 18, deck + 1)], fill=1)  # tail: upper fluke
+    g.polygon([(cx + 17, deck - 6), (cx + 26, deck - 3), (cx + 18, deck + 1)], fill=1)   # tail: lower fluke
+    cw, ch, scx = 8, 4, cx - 5                                     # container size + stack centre
+    for r, n in enumerate((4, 3, 1)):                            # a 4-3-1 stack of plain containers, lying flat
+        x0, yt = scx - n * cw / 2, deck - (r + 1) * ch
+        for c in range(n):
+            bx = x0 + c * cw
+            g.rectangle([bx, yt, bx + cw, yt + ch], fill=1, outline=0)   # black edge -> a gap between each box
+    g.ellipse([cx - 20, deck - 3, cx - 18, deck - 1], fill=0)     # a small eye on the head
+
+    lay = lay.rotate(pitch, resample=Image.NEAREST, center=(cx, sy))           # roll with the swell
+    sea = [(x, surf(x)) for x in range(0, W + 1, 4)] + [(W, H), (0, H)]
+    ImageDraw.Draw(lay).polygon(sea, fill=0)                                   # the belly dips into the water
+
+    base = d._image
+    base.paste(0, (0, 0), lay.convert("L").filter(ImageFilter.MaxFilter(3)).convert("1"))  # 1px black outline
+    base.paste(1, (0, 0), lay)                                                             # then the white whale
+    d.line([(x, surf(x)) for x in range(0, W + 1, 3)], fill=1, width=1, joint="curve")     # the sea surface, on top
 
 
 def prompt(d, W, H, now, ox=0.0, oy=0.0):  # a terminal prompt with a blinking block cursor -- "waiting"

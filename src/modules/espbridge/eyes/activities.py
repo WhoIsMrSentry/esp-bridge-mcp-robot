@@ -41,8 +41,8 @@ def pose(act, now):
         return math.sin(now * 1.5) * 1.5, 4 + math.sin(now * 2.0) * 1.5, 0.92
     if act == "testing":    # eyeing the test tube bubbling away in the bottom-right corner
         return 5 + math.sin(now * 1.6) * 1.5, 5 + math.sin(now * 1.1) * 1.5, 0.95
-    if act == "deploying":  # natural eyes, gaze drifting up to watch the launch
-        return math.sin(now * 0.8) * 4, -3 + math.sin(now * 0.5) * 4, 1.0
+    if act == "deploying":  # gaze down at the container-whale bobbing on the swell, drifting with it
+        return math.sin(now * 0.25) * 4, 7 + math.sin(now * 1.7) * 1.2, 1.0
     if act == "connecting": # expectant, waiting on the link
         return math.sin(now * 1.5) * 3, math.sin(now * 2.0) * 2, 1.0
     if act == "waiting":    # idle stare at the blinking prompt, the odd lazy drift
@@ -56,6 +56,6 @@ def pose(act, now):
 OVERLAYS = {"thinking": decor.formulas, "searching": decor.magnifier,
             "working": decor.hammer, "editing": decor.typing,
             "debugging": decor.bug, "building": decor.cubes, "testing": decor.flask,
-            "deploying": decor.rocket, "processing": decor.spinner,
+            "deploying": decor.deploy, "processing": decor.spinner,
             "connecting": decor.link_dots, "listening": decor.headphones,
             "waiting": decor.prompt, "smoking": decor.cigarette}
