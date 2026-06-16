@@ -28,8 +28,9 @@ def pose(act, now):
         return (int(line % 1.0 * 4) / 3 * 2 - 1) * 13, (int(line) % 3 - 1) * 5, 1.0
     if act == "searching":  # quick wandering glances -- scanning results
         return math.sin(now * 2.2) * 11 + math.sin(now * 1.3) * 5, math.sin(now * 1.7) * 5, 1.0
-    if act == "working":    # heads-down on the task, hammering away below
-        return math.sin(now * 1.6) * 5, 4 + math.sin(now * 0.8) * 1, 0.85
+    if act == "working":    # heads-down smithing; the eyes brace + squint with each hammer blow
+        hit = max(0.0, 1.0 - abs((now * 0.95) % 1.0 - 0.61) / 0.14)   # peaks at the strike (synced to hammer)
+        return math.sin(now * 1.1) * 3, 3 + hit * 5, 0.85 - hit * 0.3
     if act == "listening":  # attentive, gently nodding along under the headphones
         return math.sin(now * 1.8) * 2, math.sin(now * 3.6) * 2, 1.0
     if act == "processing": # locked-in, computing -- a tight steady focus
