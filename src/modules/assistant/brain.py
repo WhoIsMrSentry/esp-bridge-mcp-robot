@@ -6,18 +6,21 @@ through tool calls (set_activity + generic pin tools). History is kept across tu
 """
 from __future__ import annotations
 
-from modules.espbridge.eyes import EMOTIONS, GESTURES
+from modules.espbridge.eyes import GESTURES, MOODS
 from modules.llm import ollama_llm
 
 MAX_HISTORY = 24  # ~12 exchanges
+
+_EMOTIONS = tuple(MOODS)                 # mood names, in curated order
+_GESTURES = ("none", *GESTURES)          # gesture names + the "no gesture" sentinel
 
 # grammar-constrained reply schema; emotion/gesture are locked to the real vocabulary
 REPLY_SCHEMA = {
     "type": "object",
     "properties": {
         "response": {"type": "string"},
-        "emotion": {"type": "string", "enum": list(EMOTIONS)},
-        "gesture": {"type": "string", "enum": list(GESTURES)},
+        "emotion": {"type": "string", "enum": list(_EMOTIONS)},
+        "gesture": {"type": "string", "enum": list(_GESTURES)},
     },
     "required": ["response", "emotion"],
 }
@@ -39,7 +42,7 @@ when you look something up, working when you run a task -- then set_activity('id
 read_analog). The user says what's wired where; remember it and use the right pin. \
 If you don't know a pin, ask.
 
-Stay in character.""" % (", ".join(EMOTIONS), ", ".join(GESTURES))
+Stay in character.""" % (", ".join(_EMOTIONS), ", ".join(_GESTURES))
 
 
 class Brain:
@@ -54,7 +57,7 @@ class Brain:
                                     tools=self.tools, schema=REPLY_SCHEMA)
         del self.history[:-MAX_HISTORY]
 
-        emotion = reply.get("emotion") if reply.get("emotion") in EMOTIONS else "neutral"
+        emotion = reply.get("emotion") if reply.get("emotion") in MOODS else "neutral"
         self.eyes.play_gesture(reply.get("gesture", "none"))  # one-shot first...
         self.eyes.set_mood(emotion)                           # ...then settle the face
         return reply.get("response") or "..."

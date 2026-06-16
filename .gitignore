@@ -1,6 +1,9 @@
 # Preview pngs
 *_preview.png
 
+# Face GIFs from `demo gNN` (written to the launch dir; docs/*.gif stay tracked)
+/*.gif
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

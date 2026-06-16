@@ -1,69 +1,13 @@
-"""GESTURES -- one-shot moves played over the face: blinks (BLINKS) + enveloped
-motions (GESTURES_FN). A motion may register a GESTURE_FX painter (e.g. glitch)."""
-from __future__ import annotations
+"""A ~1.4s crash fit -- corruption tears the eyes apart (Watch Dogs style).
 
+Self-contained: the beat painters, the beat list, the eye-jolt, and the on-frame fx all
+live here. Each beat painter shares (d, img, W, H, p, seed, amp); img None -> pixel-movers no-op."""
 import math
 
 from PIL import ImageChops
 
-from .primitives import smoothstep
+from ..spec import Gesture
 
-_PI = math.pi
-
-# name -> (eyes, duration, closes); the lids always shut centred
-BLINKS = {
-    "blink":        ({"left", "right"}, 0.20, 1),
-    "double_blink": ({"left", "right"}, 0.44, 2),
-    "wink":         ({"right"}, 0.6, 1),
-    "wink_left":    ({"left"}, 0.6, 1),
-    "wink_right":   ({"right"}, 0.6, 1),
-}
-
-
-def _look(dx, dy, bias=0.0):
-    """A glance: dart to (dx, dy), parallax-swell the near eye, hold, then return."""
-    def fn(p, e):
-        if p < 0.22:        # quick dart out
-            hold = p / 0.22
-        elif p > 0.80:      # quick return
-            hold = (1.0 - p) / 0.20
-        else:               # hold the look
-            hold = 1.0
-        hold = smoothstep(hold)               # ease the ramps
-        s = 1.0 - 0.12 * hold                 # mild foreshorten (parallax carries the turn)
-        return dx * hold, dy * hold, 0.0, s, s, bias * hold
-    return fn
-
-
-# name -> (duration, fn(ph, env) -> dx, dy, conv, scale_w, scale_h[, bias]); env fades it in/out
-GESTURES_FN = {
-    # -- gaze: glance somewhere; side looks parallax-swell the near eye --
-    "look_left":   (1.2, _look(-8, 0, -0.2)),
-    "look_right":  (1.2, _look(8, 0, 0.2)),
-    "look_up":     (1.2, _look(0, -10)),
-    "look_down":   (1.2, _look(0, 10)),
-    # -- directional blinks: glance up/down as the lids snap shut, then reopen --
-    "blink_down":  (0.5, lambda p, e: (0.0, 7 * e, 0.0, 1.0, 1.0 - 0.9 * e)),
-    "blink_up":    (0.5, lambda p, e: (0.0, -7 * e, 0.0, 1.0, 1.0 - 0.9 * e)),
-    "scan":        (1.3, lambda p, e: (math.sin(p * _PI * 2) * 16 * e, 0.0, 0.0, 1.0, 1.0)),   # darting back-and-forth
-    "scan_sweep":  (1.6, lambda p, e: (-math.sin(p * _PI * 2) * 15, 0.0, 0.0, 1.0, 1.0)),      # one smooth sensor sweep
-    # -- affirm / deny / acknowledge (decaying envelope -> punch, then settle) --
-    "nod":         (1.4, lambda p, e: (0.0, math.sin(p * _PI * 4) * 7 * e * (1.0 - 0.42 * p), 0.0, 1.0, 1.0)),    # nods settling -- yes
-    "refuse":      (1.2, lambda p, e: (math.sin(p * _PI * 6) * 9 * e * (1.0 - 0.45 * p), 0.0, 0.0, 1.0, 1.0)),    # shakes settling -- no
-    "acknowledge": (0.45, lambda p, e: (0.0, e * 8, 0.0, 1.0, 1.0)),                           # one crisp dip -- "on it"
-    # -- expressive wobbles --
-    "laugh":       (1.4, lambda p, e: (0.0, -abs(math.sin(p * _PI * 4)) * 7 * e, 0.0, 1.0, 1.0 - 0.4 * e)),
-    "excited":     (0.9, lambda p, e: (0.0, -abs(math.sin(p * _PI * 5)) * 8 * e, 0.0, 1.0 + 0.22 * e, 1.0 + 0.22 * e)),
-    "roll":        (0.9, lambda p, e: (math.cos(p * _PI * 2) * 11 * e, math.sin(p * _PI * 2) * 7 * e, 0.0, 1.0, 1.0)),
-    "shiver":      (0.7, lambda p, e: (math.sin(p * _PI * 16) * 3 * e, math.cos(p * _PI * 22) * 2 * e, 0.0, 1.0, 1.0)),
-    "pop":         (0.5, lambda p, e: (0.0, 0.0, 0.0, 1.0 + 0.35 * e, 1.0 + 0.35 * e)),
-    "squint":      (1.3, lambda p, e: (0.0, 0.0, 0.0, 1.0, 1.0 - 0.6 * e)),
-    "cross_eyes":  (0.9, lambda p, e: (0.0, 0.0, 9.0 * e, 1.0, 1.0)),
-}
-
-
-# ---- glitch crash-fit: corruption effects tear the eyes apart (Watch Dogs style) ----
-# Each shares (d, img, W, H, p, seed, amp); img None -> the pixel-movers no-op.
 _GLITCH_DUR = 1.4   # seconds -- a sustained fit, then it settles back
 
 
@@ -156,12 +100,4 @@ def _glitch_effects(d, W, H, p, e):
     effect(d, getattr(d, "_image", None), W, H, p, f * 7 + 1, max(2, int(8 * e)))
 
 
-GESTURES_FN["glitch"] = (_GLITCH_DUR, _glitch_jolt)          # crash fit -- corruption tears the eyes
-
-# gesture-time painters: name -> fn(d, W, H, ph, env), drawn on top of the face
-GESTURE_FX = {"glitch": _glitch_effects}
-
-# while a gesture plays, wear another mood's eye-look (name -> mood whose paint to borrow)
-GESTURE_FACE = {}
-
-GESTURES = ("none",) + tuple(BLINKS) + tuple(GESTURES_FN)
+GESTURE = Gesture("glitch", dur=_GLITCH_DUR, motion=_glitch_jolt, fx=_glitch_effects)

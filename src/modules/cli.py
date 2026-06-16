@@ -7,7 +7,8 @@ console script, so `uvx --from git+<repo> pip-robot` runs it with no checkout.
     pip-robot                 # MCP server (default)
     pip-robot ollama          # chat with Pip (local Ollama)
     ROBOT_MCP=false pip-robot # same, via env
-    pip-robot demo            # cycle every emotion on the panel
+    pip-robot demo            # menu: play any mood / gesture / activity
+    pip-robot demo g13        # render a 30s GIF of menu item 13 (develop with no OLED)
     pip-robot --no-display    # no hardware (test)
 """
 from __future__ import annotations
@@ -35,7 +36,8 @@ def main():
     mcp = os.getenv("ROBOT_MCP", "true").lower() in ("1", "true", "yes", "on")
     with Robot(no_display="--no-display" in args) as robot:
         if "demo" in args:
-            robot.demo()
+            cap = next((a for a in args if a != "demo" and a[:1] == "g"), None)   # demo g13
+            robot.demo(capture=cap)
         elif "ollama" in args or "chat" in args:
             robot.run_chat()   # explicit chat, regardless of ROBOT_MCP
         elif mcp:

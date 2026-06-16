@@ -18,8 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from modules.espbridge.eyes import ACTIVITIES, EMOTIONS, GESTURES, EyeEngine  # noqa: E402
-from modules.espbridge.eyes.gestures import BLINKS, GESTURES_FN  # noqa: E402
+from modules.espbridge.eyes import ACTIONS, GESTURES, MOODS, EyeEngine  # noqa: E402
 
 W, H = 128, 64
 SCALE = 3          # pixel zoom for the eyes
@@ -71,7 +70,7 @@ class Driver:
 
 
 def _gesture_dur(name):
-    return BLINKS[name][1] if name in BLINKS else GESTURES_FN[name][0]
+    return GESTURES[name].dur
 
 
 def _load_font(size=16):
@@ -85,11 +84,11 @@ def _load_font(size=16):
 
 def _kind(name):
     """Which layer a face name belongs to (None if unknown)."""
-    if name in EMOTIONS:
+    if name in MOODS:
         return "mood"
-    if name in GESTURES and name != "none":
+    if name in GESTURES:
         return "gesture"
-    if name in ACTIVITIES and name != "idle":
+    if name in ACTIONS:
         return "activity"
     return None
 
@@ -98,14 +97,12 @@ def _kind(name):
 def _script():
     """The ordered (caption, dwell, kind, name) walk the showcase records."""
     yield "Pip", 1.0, None, None
-    for m in EMOTIONS:
+    for m in MOODS:
         yield f"mood: {m}", MOOD_SEC, "mood", m
     for g in GESTURES:
-        if g != "none":
-            yield f"gesture: {g}", max(0.8, _gesture_dur(g) + GEST_PAD), "gesture", g
-    for a in ACTIVITIES:
-        if a != "idle":
-            yield f"activity: {a}", ACT_SEC, "activity", a
+        yield f"gesture: {g}", max(0.8, _gesture_dur(g) + GEST_PAD), "gesture", g
+    for a in ACTIONS:
+        yield f"activity: {a}", ACT_SEC, "activity", a
 
 
 def _compose(eye, caption, font):
@@ -155,9 +152,9 @@ def preview(name):
     kind = _kind(name)
     if not kind:
         print(f"unknown face: {name!r}", file=sys.stderr)
-        print("moods:      " + " ".join(EMOTIONS), file=sys.stderr)
-        print("gestures:   " + " ".join(g for g in GESTURES if g != "none"), file=sys.stderr)
-        print("activities: " + " ".join(a for a in ACTIVITIES if a != "idle"), file=sys.stderr)
+        print("moods:      " + " ".join(MOODS), file=sys.stderr)
+        print("gestures:   " + " ".join(GESTURES), file=sys.stderr)
+        print("activities: " + " ".join(ACTIONS), file=sys.stderr)
         return 2
 
     drv = Driver()

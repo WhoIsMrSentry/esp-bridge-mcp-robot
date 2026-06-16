@@ -6,7 +6,7 @@ import time
 
 from modules.assistant.tools import build_tools
 from modules.espbridge.display import NullDisplay, connect_display
-from modules.espbridge.eyes import ACTIVITIES, EMOTIONS, GESTURES, EyeEngine
+from modules.espbridge.eyes import ACTIONS, GESTURES, MOODS, EyeEngine
 
 
 class Robot:
@@ -51,13 +51,36 @@ class Robot:
                 self.eyes.set_activity("idle")    # never leave it stuck busy
             print(f"Pip> {reply}\n")
 
-    def demo(self):
+    def _menu_items(self):
+        """The flat (kind, name) list the demo menu numbers index into."""
+        return ([("mood", m) for m in MOODS]
+                + [("gesture", g) for g in GESTURES]
+                + [("activity", a) for a in ACTIONS])
+
+    def _capture(self, token, items):
+        """Render a 30s GIF for a 'gNN'/'gNAME' token -- develop the face with no OLED."""
+        body = token[1:]
+        if body.isdigit() and 1 <= int(body) <= len(items):
+            kind, name = items[int(body) - 1]
+        else:
+            match = next((it for it in items if it[1] == body), None)
+            if not match:
+                print(f"can't GIF {token!r} (use gNN or gNAME from the menu)")
+                return
+            kind, name = match
+        from modules.espbridge.eyes.record import record_gif
+        print(f"-> rendering 30s GIF of {kind}: {name} ...")
+        print(f"wrote {record_gif(kind, name)}")
+
+    def demo(self, capture=None):
         """Interactive menu: pick an emotion, gesture or activity to play."""
-        moods = list(EMOTIONS)
-        gestures = [g for g in GESTURES if g != "none"]
-        activities = [a for a in ACTIVITIES if a != "idle"]
-        items = ([("mood", m) for m in moods] + [("gesture", g) for g in gestures]
-                 + [("activity", a) for a in activities])
+        items = self._menu_items()
+        if capture:                                  # non-interactive: render one GIF and exit
+            self._capture(capture, items)
+            return
+        moods = [n for k, n in items if k == "mood"]
+        gestures = [n for k, n in items if k == "gesture"]
+        activities = [n for k, n in items if k == "activity"]
 
         def show_menu():
             # three side-by-side columns; the printed number is the index into `items`
@@ -80,7 +103,7 @@ class Robot:
                     cells.pop()
                 print("  " + " | ".join(cells))
             print("  " + "=" * total)
-            print("  a = play all (2s each)    q = quit    (number or name)")
+            print("  a = play all (2s each)    gNN = save 30s GIF    q = quit    (number or name)")
 
         def play(kind, name):
             print(f"-> {kind}: {name}")
@@ -110,6 +133,10 @@ class Robot:
                     play(kind, name)
                     time.sleep(2.0)
                 self.eyes.set_activity("idle")
+                continue
+            if len(choice) > 1 and choice[0] == "g" and \
+                    (choice[1:].isdigit() or any(it[1] == choice[1:] for it in items)):
+                self._capture(choice, items)
                 continue
             match = None
             if choice.isdigit() and 1 <= int(choice) <= len(items):

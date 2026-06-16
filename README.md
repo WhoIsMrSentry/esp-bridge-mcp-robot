@@ -99,9 +99,40 @@ set what you change.
 
 ## Extending
 
-Add a tool in `build_tools` for new hardware, or a face in **one line** — an emotion in
-`eyes/moods.py`, a gesture in `eyes/gestures.py`, an activity in `eyes/activities.py`. Both
-brains pick it up automatically. Rebuild the showcase GIF with `uv run docs/make_gif.py`.
+Add a tool in `build_tools` for new hardware, or a new face by **dropping one self-contained
+file** in a folder — a mood in `eyes/moods/`, a gesture in `eyes/gestures/`, an activity in
+`eyes/actions/`. Copy the nearest sibling, edit it (each file exposes a single
+`MOOD`/`GESTURE`/`ACTION` — see `eyes/spec.py` for the fields), then add its name to that
+folder's ordered list in `__init__.py`. Both brains pick it up automatically. Rebuild the
+showcase GIF with `uv run docs/make_gif.py`.
+
+### Develop the face without an OLED
+
+No board on your desk? You can still build and preview faces — the eyes render entirely in
+software. New to the code? This is the easiest way in: tweak a face, render it, look at the GIF.
+
+```bash
+uv run src/main.py demo --no-display   # open the menu (no hardware needed)
+```
+
+Every face has a number in the menu. Instead of typing the number to *play* it, type **`g`
+before the number** (or before the name) to save a **30-second looping GIF** of that face to
+the folder you're in:
+
+```
+demo> g13       # writes chill.gif (menu item 13) to the current directory
+demo> gzen      # writes zen.gif  (by name)
+```
+
+Or render one and exit, straight from the command line (handy for scripts):
+
+```bash
+uv run src/main.py demo g13 --no-display
+```
+
+Open the `.gif`, see how it looks, edit the face's file in `eyes/`, render again. The
+GIF capture needs Pillow — already pulled in by `uv sync`; if it's ever missing, run
+`uv sync --extra dev`.
 
 ## Troubleshooting
 

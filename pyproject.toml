@@ -11,6 +11,9 @@ dependencies = [
     "python-esp-bridge[all]>=0.15.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pillow>=10"]   # headless GIF capture (demo gNN) + docs/make_gif.py
+
 [project.scripts]
 pip-robot = "modules.cli:main"
 

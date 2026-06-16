@@ -24,7 +24,11 @@ Source under `src/`; imports are absolute from there (`from modules.…`). The s
 package installs as `modules`, so `uvx --from git+<repo> pip-robot` runs it with no
 checkout. Settings come from `os.getenv` (every read has a code default). Our
 `modules/espbridge` ≠ the installed `espbridge` library. Add a capability in
-`build_tools`; add a face with one line in the matching `eyes/` file. Eyeball it
+`build_tools`; add a face by dropping one self-contained file in `eyes/moods/`,
+`eyes/gestures/`, or `eyes/actions/` (each exposes a single `MOOD`/`GESTURE`/`ACTION` —
+see `eyes/spec.py`), then list its name in that folder's `__init__.py` order tuple
+(that tuple is the curated order — menus, showcase, LLM enum). Shared bits: `painters.py`
+(lid carvers), `primitives.py` (draw/math), `engine.py` (renderer). Eyeball a face
 headless with `uv run docs/make_gif.py <face>` (writes a 5-frame `docs/<face>_preview.png`,
 gitignored); no args rebuilds the showcase `docs/pip-eyes.gif`.
 
