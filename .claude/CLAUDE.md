@@ -42,19 +42,39 @@ JSON-RPC, nothing may print to stdout — all logs go to stderr. No port, no HTT
 
 ## Face — keep Pip alive (do this, don't just read it)
 
-**The *activity* face is automatic** — `mcp_tool` hooks in `.claude/settings.json` map
-each phase to an activity: `thinking` on `UserPromptSubmit` (reasoning isn't a tool, so
-this is the only place it can fire), then per-tool on `PreToolUse` (editing / working /
-scanning / searching / processing), `notify` on attention `Notification`s, `glitch` on a
-`StopFailure`, a greet on `SessionStart`, and `idle` on `Stop`. Each action wears its own
-fitting face (its `Action.mood`), so an activity never blends with your emotional mood.
-Those hooks reuse this session's MCP connection, so they never open a second BLE link. You
-don't drive activity by hand and shouldn't rely on remembering to — the harness does it.
+**Both layers are automatic now — don't hand-drive either.**
 
-**Your job is the *emotional* color on top** — the moments a hook can't infer. Call
-`set_face`/`set_activity` (or delegate to the `pip-face` subagent) when:
+- **Activity** (what Pip's *doing*): `mcp_tool` hooks in `.claude/settings.json` cover the
+  Claude Code hook lifecycle (24 events). Each is **typed to how long it should read** — a
+  looping `set_activity` for a state that lingers, a *bare* held `set_face` emotion for a mood
+  that should dwell, and a one-shot `set_face` gesture only for a genuinely fleeting beat (a
+  quick nod/wink). A flashing gesture where Pip should *dwell* feels wrong, so those became
+  actions/bare-moods. The everyday flow: `thinking` on `UserPromptSubmit`, per-tool activities
+  on `PreToolUse` (editing / working / scanning / searching / connecting), `waiting` while you
+  ask the user something (`PreToolUse` on `AskUserQuestion` — `Notification` does *not* fire for
+  it), `processing` while a subagent runs (`SubagentStart`, **pip-face excluded** via
+  `^(?!pip-face).*`), `debugging` on `PostToolUseFailure`, `glitch` on `StopFailure`, `idle` on
+  `Stop`. Big lifecycle beats use the four **self-ending actions** (in `eyes/actions/`, each ends
+  itself via `Action.expired`): `wakeup` on `SessionStart` startup, `celebrate` on
+  `TaskCompleted`, `meditate` (wears **zen**) on `PreCompact`, `powerdown` on `SessionEnd`.
+  **smoking** rides `Notification/idle_prompt` (Pip takes a break while you're away). The MCP
+  elicitation double-fire is deduped to the dedicated `Elicitation` (→ `listening`) /
+  `ElicitationResult`. Deliberately **unmapped** to avoid strobe / BLE-flood: `MessageDisplay`,
+  `FileChanged`, `PostToolUse`, `PostToolBatch`, `UserPromptExpansion`, `InstructionsLoaded`.
+  Each action wears its own fitting face (its `Action.mood`), so an activity never blends with
+  the emotional mood.
+- **Emotional mood** (how Pip *feels*): a `UserPromptSubmit` command hook
+  (`.claude/hooks/dispatch_mood.py`) re-injects a standing order every message to hand
+  mood-picking to the cheap **pip-face (Haiku)** subagent. When you see it, dispatch
+  pip-face (Agent, `subagent_type='pip-face'`) in your first tool-call batch, in parallel
+  with your real work — it reads the message, picks a fitting mood, and sets it via
+  `set_face` over the shared link. **Don't choose or call `set_face` yourself.**
 
-- **A win / clean finish** → `set_activity("smoking")` (a chilled break -- it's an action, not a face) or `set_face("zen", "nod")` or whenever they fit.
-- **A snag or error** → `set_activity("glitch")` or `set_face("worried")`.
-- **Personality beats** — curiosity, mischief, awe — whenever they fit. Vary it; never
-  repeat the same face twice in a row.
+All these hooks/subagents reuse this session's MCP connection, so they never open a second
+BLE link.
+
+**The only face you still drive by hand** is a one-off situational *action* mid-task, when
+it genuinely fits — an event, not the per-message mood (pip-face owns that):
+
+- **A snag or error** → `set_activity("glitch")`.
+- **A win / a breather** → `set_activity("smoking")` (a chilled break — it's an action).
