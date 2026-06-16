@@ -1,11 +1,5 @@
-"""EyeEngine -- threaded renderer wiring the three layers (mood / gesture / activity).
-
-The moving layer holds ONE move at a time: a blink or a gesture. A commanded
-gesture preempts it; the automatic blink and the mood-change mask-blink only fire
-when it is free, so moves never overlap. A mood change that arrives while it is
-busy waits in `_pending` and applies (masked) the moment it frees. A separate
-eased pose (gaze + size) glides toward its target, so everything settles, never snaps.
-"""
+"""EyeEngine -- threaded renderer for the mood / gesture / activity layers.
+One move at a time (blink or gesture); a separate eased pose glides gaze + size."""
 from __future__ import annotations
 
 import math
@@ -18,7 +12,7 @@ from PIL import Image, ImageDraw
 from .activities import ACT_MOOD, ACTIVITIES, OVERLAYS, pose
 from .gestures import BLINKS, GESTURE_FACE, GESTURE_FX, GESTURES_FN
 from .moods import MOODS
-from .primitives import ease, rounded_rect
+from .primitives import ease, lid_openness, rounded_rect
 
 _TAU_GAZE, _TAU_SIZE = 0.09, 0.11            # gaze / eye-size settle time-constants
 _AUTO = ({"left", "right"}, 0.20, 1, 0.5)    # spontaneous blink (eyes, dur, reps, anchor)
@@ -28,10 +22,10 @@ _MASK = ({"left", "right"}, 0.24, 1, 0.5)    # blink that hides a mood's lid swa
 class EyeEngine:
     def __init__(self, show, *, width=128, height=64, fps=30,
                  eye_w=36, eye_h=36, radius=12, gap=10,
-                 set_brightness=None, bright=255):        # bright = general panel brightness, max by default
+                 set_brightness=None, bright=255):        # bright = panel brightness, max by default
         self._show = show
         self._set_brightness, self._bright = set_brightness, bright
-        self._cur_bright = None                          # unset -> first frame pushes the general level
+        self._cur_bright = None                          # unset -> first frame pushes it
         self.W, self.H, self.fps = width, height, max(5, fps)
         self.eye_w, self.eye_h, self.radius, self.gap = eye_w, eye_h, radius, gap
         self.base_lx = (width - (2 * eye_w + gap)) // 2
@@ -47,7 +41,7 @@ class EyeEngine:
         self._pending = None                             # mood waiting for the layer to free
         self.look_x = self.look_y = 0.0                  # resting gaze target
         self._blink = self._gesture = self._activity = None
-        self._restore_mood = None                        # mood to return to after a face-swapping gesture
+        self._restore_mood = None                        # mood to restore after a face-swapping gesture
         self._next_blink = self._next_idle = 0.0
         self._stop = threading.Event()
         self._thread = None
@@ -56,7 +50,7 @@ class EyeEngine:
     def start(self):
         if not (self._thread and self._thread.is_alive()):
             self._stop.clear()
-            self._thread = threading.Thread(target=self._run, name="eye-engine", daemon=True)
+            self._thread = threading.Thread(target=self._loop, name="eye-engine", daemon=True)
             self._thread.start()
 
     def stop(self):
@@ -67,7 +61,7 @@ class EyeEngine:
     def set_mood(self, mood):
         m = mood.lower() if mood and mood.lower() in MOODS else "neutral"
         with self._lock:
-            self._restore_mood = None                    # an explicit mood change cancels a pending gesture-restore
+            self._restore_mood = None                    # explicit change cancels a gesture-restore
             if m == self.mood:
                 self._pending = None
             elif self._blink or self._gesture:           # busy -> apply (masked) once free
@@ -77,25 +71,23 @@ class EyeEngine:
                 self._begin_blink(time.monotonic(), _MASK)
 
     def play_gesture(self, name):
-        """Play a commanded blink/gesture; it preempts whatever is on the moving
-        layer, so a sent emote is never dropped or overwritten by a default."""
+        """Play a commanded blink/gesture; preempts whatever's on the moving layer."""
         name = (name or "none").lower()
         now = time.monotonic()
         with self._lock:
-            if self._restore_mood is not None:           # a prior face-gesture is interrupted -> restore its mood first
+            if self._restore_mood is not None:           # interrupting a face-gesture -> restore its mood
                 self.mood, self._restore_mood = self._restore_mood, None
             if name in BLINKS:
                 self._begin_blink(now, BLINKS[name])
             elif name in GESTURES_FN:
                 self._blink = None
                 self._gesture = {"kind": name, "start": now, "dur": GESTURES_FN[name][0]}
-                if name in GESTURE_FACE:                  # wear another mood for the gesture, restore it when done
+                if name in GESTURE_FACE:                  # wear another mood for the gesture, restore when done
                     self._restore_mood = self.mood
                     self.mood, self._pending = GESTURE_FACE[name], None
 
     def set_activity(self, name):
-        """Loop a status animation (thinking/scanning/...); 'idle' stops it. Each busy
-        activity also wears a fitting face (thinking -> focused, ...)."""
+        """Loop a status animation ('idle' stops it); also wears a fitting face."""
         name = (name or "idle").lower()
         act = name if name in ACTIVITIES and name != "idle" else None
         if act in ACT_MOOD:
@@ -103,14 +95,14 @@ class EyeEngine:
         with self._lock:
             self._activity = act
 
-    # -------------------------------------------------------------- internals
+    # ----------------------------------------------------------- frame loop
     def _begin_blink(self, now, spec):
         """Start a blink, clearing the moving layer (caller holds the lock)."""
         eyes, dur, reps, anchor = spec
         self._gesture = None
         self._blink = {"eyes": set(eyes), "start": now, "dur": dur, "reps": reps, "anchor": anchor}
 
-    def _run(self):
+    def _loop(self):
         now = last = time.monotonic()
         self._next_blink = now + random.uniform(2, 6)
         self._next_idle = now + random.uniform(1.5, 5)
@@ -119,106 +111,159 @@ class EyeEngine:
             now = time.monotonic()
             dt = min(0.1, now - last)                     # clamp so a stall can't teleport the eyes
             last = now
-            self._step(now, dt)
+            mood, act, look = self._schedule(now)
+            self._ease_pose(now, dt, mood, act, look)
             try:
                 self._show(self._render(now))
             except Exception:
-                pass                                     # transient BLE/I2C hiccup -- keep going
+                pass                                      # transient BLE/I2C hiccup -- keep going
             time.sleep(max(0.0, frame - (time.monotonic() - now)))
 
-    def _step(self, now, dt):
-        """Retire finished moves, schedule automatic ones, ease the pose to target."""
+    def _schedule(self, now):
+        """Locked: retire finished moves, fire the next auto blink/glance, snapshot state."""
         with self._lock:
             if self._blink and now - self._blink["start"] > self._blink["dur"]:
                 self._blink = None
             if self._gesture and now - self._gesture["start"] > self._gesture["dur"]:
                 self._gesture = None
-                if self._restore_mood is not None:        # face-swapping gesture finished -> restore the original mood
+                if self._restore_mood is not None:        # face-gesture done -> restore the mood
                     self.mood, self._restore_mood = self._restore_mood, None
             free = not (self._blink or self._gesture)
-            if free and self._pending:                       # masked deferred mood swap
+            if free and self._pending:                    # masked deferred mood swap
                 self.mood, self._pending = self._pending, None
                 self._begin_blink(now, _MASK)
-            elif free and now >= self._next_blink:           # spontaneous blink
-                self._begin_blink(now, _AUTO)
+            elif free and now >= self._next_blink:        # spontaneous blink (unless mood holds still)
+                if not MOODS[self.mood].get("still"):
+                    self._begin_blink(now, _AUTO)
                 self._next_blink = now + random.uniform(2, 6)
-            elif free and self._activity is None and now >= self._next_idle:  # idle glance
-                self.look_x, self.look_y = (0.0, 0.0) if random.random() < 0.3 else \
+            elif free and self._activity is None and now >= self._next_idle:   # idle glance
+                centered = random.random() < 0.3
+                self.look_x, self.look_y = (0.0, 0.0) if centered else \
                     (random.uniform(-16, 16), random.uniform(-7, 7))
+                if not centered and random.random() < 0.4:        # eyes tend to blink as they dart
+                    self._begin_blink(now, _AUTO)
+                    self._next_blink = now + random.uniform(2, 6)
                 self._next_idle = now + random.uniform(1.5, 5)
-            mood, act, look = self.mood, self._activity, (self.look_x, self.look_y)
+            if MOODS[self.mood].get("still"):             # a still mood holds its gaze centred (zen)
+                self.look_x = self.look_y = 0.0
+            return self.mood, self._activity, (self.look_x, self.look_y)
 
+    def _ease_pose(self, now, dt, mood, act, look):
+        """Push brightness, then glide gaze + eye-size toward target."""
         spec = MOODS[mood]
-        target = min(spec.get("bright", self._bright), self._bright)  # emote may dim, capped at the general max
-        if self._set_brightness and target != self._cur_bright:
+        bright = min(spec.get("bright", self._bright), self._bright)   # emote may dim, capped at max
+        if self._set_brightness and bright != self._cur_bright:
             try:
-                self._set_brightness(target)
-                self._cur_bright = target
+                self._set_brightness(bright)
+                self._cur_bright = bright
             except Exception:
                 pass                                      # BLE hiccup -- retry next frame
-
-        bw = self.eye_w + spec.get("dw", 0)
-        bh = self.eye_h + spec.get("dh", 0)
         if act:
             tx, ty, hmult = pose(act, now)
-            bh *= hmult
         else:
-            tx, ty = look
+            tx, ty, hmult = look[0], look[1], 1.0
         self.gx = ease(self.gx, tx, dt, _TAU_GAZE)
         self.gy = ease(self.gy, ty, dt, _TAU_GAZE)
-        self.ew = ease(self.ew, bw, dt, _TAU_SIZE)
-        self.eh = ease(self.eh, bh, dt, _TAU_SIZE)
+        self.ew = ease(self.ew, self.eye_w + spec.get("dw", 0), dt, _TAU_SIZE)
+        self.eh = ease(self.eh, (self.eye_h + spec.get("dh", 0)) * hmult, dt, _TAU_SIZE)
 
-    def _render(self, now):
-        with self._lock:                                 # snapshot; the dicts are never mutated in place
-            mood, act, b, g = self.mood, self._activity, self._blink, self._gesture
+    # --------------------------------------------------------- motion + draw
+    @staticmethod
+    def _breath(now, amp):
+        """Slow breath -> (vertical bob px, eye-height multiplier)."""
+        period, bob_px, swell = 3.7, 1.0, 0.018           # s/cycle, px rise/fall, height swell
+        w = 2 * math.pi / period
+        bob = math.sin(now * w) * bob_px * amp
+        return bob, 1.0 + swell * math.sin(now * w - 0.5) * amp   # swell lags the bob -> "inflate"
 
-        # blink: per-eye openness 1 -> 0 -> 1 (reps times); anchor = where the lid shuts
-        ol = or_ = 1.0
-        anchor = 0.5
-        if b:
-            o = 1.0 - abs(math.sin(min(1.0, (now - b["start"]) / b["dur"]) * b["reps"] * math.pi))
-            anchor = b["anchor"]
-            ol = o if "left" in b["eyes"] else ol
-            or_ = o if "right" in b["eyes"] else or_
+    @staticmethod
+    def _drift(now):
+        """Slow incommensurate gaze wander so a resting face never locks -> (x, y) px."""
+        ax, ay = 0.5, 0.32                                # px wander amplitudes
+        x = (math.sin(now * 0.61) + 0.5 * math.sin(now * 1.07 + 1.2)) * ax
+        y = (math.sin(now * 0.73 + 2.0) + 0.5 * math.sin(now * 1.31)) * ay
+        return x, y
 
-        # gesture: one enveloped move (dx, dy, convergence, scale_w, scale_h[, size-bias])
-        dx = dy = conv = 0.0
-        msw = msh = 1.0
-        gbias = 0.0
-        gkind = gph = genv = None
-        if g:
-            ph = min(1.0, (now - g["start"]) / g["dur"])
-            gkind, gph, genv = g["kind"], ph, math.sin(ph * math.pi)
-            ret = GESTURES_FN[g["kind"]][1](ph, genv)
-            dx, dy, conv, msw, msh = ret[:5]
-            gbias = ret[5] if len(ret) > 5 else 0.0
+    def _idle_life(self, now, spec, busy):
+        """Breath always + a slow gaze wander at rest -> (x, y incl. bob, breath mult)."""
+        calm = spec.get("still")
+        amp = 0.4 if busy else (0.55 if calm else 1.0)
+        bob, breath = self._breath(now, amp)
+        if busy or calm:
+            return 0.0, bob, breath                       # no wander while busy / meditating
+        dx, dy = self._drift(now)
+        return dx, bob + dy, breath
 
-        spec = MOODS[mood]
-        paint, tilt = spec.get("paint"), spec.get("tilt", 0.0)
-        bias = spec.get("bias", 0.0) + gbias             # + = right eye bigger, left smaller
+    @staticmethod
+    def _blink_lids(b, now):
+        """Per-eye openness (snaps shut, eases open) + lid line; (1, 1, .5) at rest."""
+        if not b:
+            return 1.0, 1.0, 0.5
+        o = lid_openness((now - b["start"]) / b["dur"], b["reps"])
+        ol = o if "left" in b["eyes"] else 1.0
+        or_ = o if "right" in b["eyes"] else 1.0
+        return ol, or_, b["anchor"]
 
+    @staticmethod
+    def _gesture_move(g, now):
+        """Gesture motion -> (dx, dy, conv, w-scale, h-scale, bias); rest with none."""
+        if not g:
+            return 0.0, 0.0, 0.0, 1.0, 1.0, 0.0
+        ph = min(1.0, (now - g["start"]) / g["dur"])
+        ret = GESTURES_FN[g["kind"]][1](ph, math.sin(ph * math.pi))   # env = sin fades it in/out
+        return (*ret[:5], ret[5] if len(ret) > 5 else 0.0)
+
+    @staticmethod
+    def _tilt(spec, now):
+        """Per-eye y-skew: static tilt + optional animated `sway` (woozy seesaw)."""
+        tilt = spec.get("tilt", 0.0)
+        if spec.get("sway"):
+            amp, spd = spec["sway"]
+            tilt += amp * math.sin(now * spd)
+        return tilt
+
+    def _draw_eye(self, sx, y0, openness, right, anchor, tilt, bias, conv, sw, sh, breath, paint):
+        """Draw one eye: parallax + gesture scale + breath, lid to anchor, then mood lids."""
+        es = 1.0 + (bias if right else -bias)             # parallax: the near eye swells
+        w = max(2.0, self.ew * sw * es)
+        ho = max(2.0, self.eh * sh * es * breath)         # open height (before the blink)
+        h = max(2.0, ho * openness)
+        ex = sx + (self.eye_w - w) / 2 + (-conv if right else conv)
+        ey = y0 + (tilt if right else -tilt) + (self.eye_h - ho) / 2 + (ho - h) * anchor
+        r = min(w, h) * self.radius / self.eye_w
+        rounded_rect(self._draw, ex, ey, w, h, r, 1)
+        if openness > 0.6 and paint:                      # lids drop out while (half-)blinked
+            paint(self._draw, ex, ey, w, h, r, right)
+
+    def _draw_extras(self, now, spec, act, g):
+        """Mood decor, the activity overlay, then any gesture FX."""
         d = self._draw
-        d.rectangle([0, 0, self.W - 1, self.H - 1], fill=0)   # clear the reused buffer
-        slot = self.base_lx + self.gx + dx                    # left eye's slot origin
-        eyes = () if spec.get("bare") else \
-            ((slot, ol, False), (slot + self.eye_w + self.gap, or_, True))  # 'bare' draws no eyes
-        for sx, openness, right in eyes:
-            es = 1.0 + (bias if right else -bias)             # parallax: the near eye swells
-            w = max(2.0, self.ew * msw * es)
-            ho = max(2.0, self.eh * msh * es)                 # open height (before the blink)
-            h = max(2.0, ho * openness)
-            ex = sx + (self.eye_w - w) / 2 + (-conv if right else conv)
-            ey = self.base_ly + self.gy + dy + (tilt if right else -tilt) \
-                + (self.eye_h - ho) / 2 + (ho - h) * anchor   # centre, then shut lid to anchor
-            r = min(w, h) * self.radius / self.eye_w
-            rounded_rect(d, ex, ey, w, h, r, 1)
-            if openness > 0.6 and paint:                      # lids drop out while (half-)blinked
-                paint(d, ex, ey, w, h, r, right)
         if spec.get("decor"):
             spec["decor"](d, self.W, self.H, now, self.gx, self.gy)
         if act in OVERLAYS:
-            OVERLAYS[act](d, self.W, self.H, now)
-        if gkind in GESTURE_FX:                           # gesture-time extras (e.g. a smoke cloud)
-            GESTURE_FX[gkind](d, self.W, self.H, gph, genv)
+            OVERLAYS[act](d, self.W, self.H, now, self.gx, self.gy)   # pass gaze so a prop rides the face
+        if g and g["kind"] in GESTURE_FX:                            # e.g. the glitch corruption
+            ph = min(1.0, (now - g["start"]) / g["dur"])
+            GESTURE_FX[g["kind"]](d, self.W, self.H, ph, math.sin(ph * math.pi))
+
+    def _render(self, now):
+        with self._lock:                                 # snapshot; dicts are never mutated in place
+            mood, act, b, g = self.mood, self._activity, self._blink, self._gesture
+        spec = MOODS[mood]
+
+        ol, or_, anchor = self._blink_lids(b, now)
+        dx, dy, conv, sw, sh, gbias = self._gesture_move(g, now)
+        tilt = self._tilt(spec, now)
+        bias = spec.get("bias", 0.0) + gbias             # + = right eye bigger, left smaller
+        lifex, lifey, breath = self._idle_life(now, spec, g is not None or act is not None)
+
+        self._draw.rectangle([0, 0, self.W - 1, self.H - 1], fill=0)   # clear the reused buffer
+        if not spec.get("bare"):                                       # 'bare' (cool) draws no eyes
+            x0 = self.base_lx + self.gx + dx + lifex                   # left eye's slot origin
+            y0 = self.base_ly + self.gy + dy + lifey
+            paint = spec.get("paint")
+            for sx, openness, right in ((x0, ol, False),
+                                        (x0 + self.eye_w + self.gap, or_, True)):
+                self._draw_eye(sx, y0, openness, right, anchor, tilt, bias, conv, sw, sh, breath, paint)
+        self._draw_extras(now, spec, act, g)
         return self._img

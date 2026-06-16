@@ -14,17 +14,28 @@ def build_tools(eyes, mgr=None):
     def set_face(emotion: str, gesture: str = "none") -> str:
         """Set the robot's face: a held emotion, plus an optional one-shot gesture.
 
-        emotion: the sustained expression the face holds until you change it --
-            neutral, happy, sad, angry, tired, sleepy, surprised, lovely,
-            skeptical, focused, dumb, confused, bored, scared, dead, alert,
-            furious, worried, despair, disoriented, attentive, standby, smoking,
-            suspicious, awe, wired, nervous, gloomy, cool, devil, or kawaii.
-        gesture: a momentary animation that plays once, then the emotion resumes --
-            none, blink, double_blink, blink_up, blink_down, wink, wink_left,
-            wink_right, nod, refuse, laugh, excited, roll, shiver, cross_eyes,
-            pop, squint, scan, look_left, look_right, look_up, look_down,
-            acknowledge, scan_sweep, or smoke (a slow drag + exhaled plume;
-            wears a bored face while it plays, then restores your mood).
+        Use this for how Pip *feels*. For what Pip is *doing* (an ongoing task),
+        use set_activity instead.
+
+        emotion: the sustained expression the face holds until you change it.
+            calm/positive: neutral, happy, lovely, kawaii, awe, cool, focused,
+                zen (in flow), wired (caffeinated), chill (mellow), attentive;
+            sad/anxious:    sad, gloomy, worried, nervous, despair, scared,
+                tired, sleepy;
+            angry/wary:     angry, furious, devil, suspicious, skeptical;
+            dazed/off:      surprised, dumb, confused, disoriented, bored, dead;
+            system:         alert (attention), standby (low-power sleep).
+        gesture: a momentary animation that plays once over the face, then the
+            emotion resumes.
+            blinks:  blink, double_blink, blink_up, blink_down, wink, wink_left,
+                wink_right;
+            gaze:    look_left, look_right, look_up, look_down, scan, scan_sweep;
+            react:   nod, refuse, acknowledge, laugh, excited, roll, shiver,
+                cross_eyes, pop, squint;
+            glitch:  a ~1.4s crash fit -- the eyes tear through datamosh shifts,
+                scanlines, static, ghosting, code-rain and invert flashes, then
+                settle (good for an error/exception).
+            (default none plays nothing.)
         """
         eyes.set_mood(emotion)
         eyes.play_gesture(gesture)  # no-op on "none"
@@ -34,10 +45,14 @@ def build_tools(eyes, mgr=None):
         """Show what the robot is busy doing; the animation loops until changed.
 
         activity: thinking (figuring something out), scanning (reading text),
-            searching (looking things up), working (running a task), processing
-            (computing), connecting (establishing a link), listening, or idle to
-            stop. Set it before a slow step, idle when done. Each busy activity
-            also puts on a fitting face, so no need to set one too.
+            searching (looking things up), processing (computing), working
+            (running a task), editing (writing code), debugging (hunting a bug),
+            building (compiling/assembling), testing (running tests), deploying
+            (shipping/launching), connecting (establishing a link), listening,
+            waiting (idle for input/output),
+            smoking (a chilled break), or idle to stop. Set it before a slow
+            step, idle when done. Each busy activity also puts on a fitting
+            face, so no need to set one too.
         """
         eyes.set_activity(activity)
         return f"activity: {activity}"

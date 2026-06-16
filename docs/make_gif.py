@@ -1,9 +1,11 @@
-"""Render every mood, gesture and activity into one labelled showcase GIF.
+"""Render Pip's faces headlessly off the real eye engine (no hardware).
 
-    uv run docs/make_gif.py               # writes docs/pip-eyes.gif
+    uv run docs/make_gif.py            # writes docs/pip-eyes.gif (every face, labelled)
+    uv run docs/make_gif.py zen        # writes docs/zen_preview.png (one face, 5 frames)
 
-Headless: drives the real eye engine with a capture callback (no hardware),
-samples the latest frame at a fixed rate, scales it up and adds a caption.
+No args -> the full showcase GIF. A face name (mood / gesture / activity) ->
+a 5-frame contact sheet for eyeballing that one face during development.
+Both drive the engine with a capture callback and sample its latest frame.
 """
 from __future__ import annotations
 
@@ -27,6 +29,10 @@ MOOD_SEC = 0.9     # dwell per mood
 ACT_SEC = 1.6      # dwell per activity
 GEST_PAD = 0.4     # extra time after a gesture's own duration
 OUT = ROOT / "docs" / "pip-eyes.gif"
+
+PREVIEW_N = 5      # frames per single-face preview sheet
+PREVIEW_SCALE = 2  # pixel zoom for a preview frame
+PREVIEW_FRACS = (0.1, 0.3, 0.5, 0.7, 0.9)   # where in the window each frame is grabbed
 
 _latest = {}
 _frames = []       # (eye image, caption)
@@ -105,5 +111,82 @@ def main():
     print(f"wrote {OUT.relative_to(ROOT)}  ({len(imgs)} frames, {kb:.0f} KB)")
 
 
+# ----------------------------------------------------------- single-face preview
+def _kind(name):
+    """Which layer a face name belongs to (None if unknown)."""
+    if name in EMOTIONS:
+        return "mood"
+    if name in GESTURES and name != "none":
+        return "gesture"
+    if name in ACTIVITIES and name != "idle":
+        return "activity"
+    return None
+
+
+def _sample(eyes, name, kind):
+    """Drive the one face, then grab PREVIEW_N frames spread across its arc/loop."""
+    if kind == "gesture":
+        eyes.set_mood("neutral")
+        time.sleep(0.4)                      # settle to a plain face first
+        window = _gesture_dur(name)          # the gesture's own in-and-out arc
+        eyes.play_gesture(name)
+    elif kind == "activity":
+        eyes.set_activity(name)
+        window = ACT_SEC
+        time.sleep(0.3)
+    else:
+        eyes.set_mood(name)
+        window = MOOD_SEC + 0.3
+        time.sleep(0.3)
+    t0 = time.monotonic()
+    frames = []
+    for frac in PREVIEW_FRACS:
+        while time.monotonic() < t0 + frac * window:
+            time.sleep(0.005)
+        f = _latest.get("f")
+        if f is not None:
+            frames.append(f.copy())
+    return frames
+
+
+def _compose_preview(frames, name, kind, font, small):
+    """Stack the frames into one labelled filmstrip (name header + per-frame index)."""
+    fw, fh, head, gap = W * PREVIEW_SCALE, H * PREVIEW_SCALE, 22, 4
+    canvas = Image.new("L", (fw, head + len(frames) * (fh + gap)), 0)
+    d = ImageDraw.Draw(canvas)
+    d.text((6, 3), f"{name}  ({kind})", fill=255, font=font)
+    for i, f in enumerate(frames):
+        y = head + i * (fh + gap)
+        canvas.paste(f.convert("L").resize((fw, fh), Image.NEAREST), (0, y))
+        d.text((4, y + 2), f"n={i}", fill=255, font=small)
+    return canvas
+
+
+def preview(name):
+    name = name.lower()
+    kind = _kind(name)
+    if not kind:
+        print(f"unknown face: {name!r}", file=sys.stderr)
+        print("moods:      " + " ".join(EMOTIONS), file=sys.stderr)
+        print("gestures:   " + " ".join(g for g in GESTURES if g != "none"), file=sys.stderr)
+        print("activities: " + " ".join(a for a in ACTIVITIES if a != "idle"), file=sys.stderr)
+        return 2
+
+    eyes = EyeEngine(lambda img: _latest.__setitem__("f", img.copy()), fps=30)
+    eyes.start()
+    try:
+        eyes.set_activity("idle")
+        eyes.set_mood("neutral")
+        time.sleep(0.3)
+        frames = _sample(eyes, name, kind)
+    finally:
+        eyes.stop()
+
+    out = ROOT / "docs" / f"{name}_preview.png"
+    _compose_preview(frames, name, kind, _load_font(), _load_font(12)).save(out, optimize=True)
+    print(f"wrote {out.relative_to(ROOT)}  ({len(frames)} frames)")
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(preview(sys.argv[1]) if len(sys.argv) > 1 else main())

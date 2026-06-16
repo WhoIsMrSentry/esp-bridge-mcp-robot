@@ -17,11 +17,20 @@ def smoothstep(k):
     return k * k * (3 - 2 * k)
 
 
+def lid_openness(u, reps, close=0.34):
+    """Eyelid openness over a blink, 1->0->1 x reps; asymmetric -- snaps shut, eases open."""
+    seg = (max(0.0, min(1.0, u)) * reps) % 1.0
+    if seg < close:
+        return 1.0 - smoothstep(seg / close)              # fast close
+    return smoothstep((seg - close) / (1.0 - close))      # slower open
+
+
 def rounded_rect(d, x, y, w, h, r, fill):
-    """rounded_rectangle with clamped radius (thin/blinking eyes never raise)."""
+    """Rounded rect, clamped radius; rounds size once so a sub-pixel drift slides it rigidly."""
     if w <= 0 or h <= 0:
         return
-    x0, y0, x1, y1 = round(x), round(y), round(x + w - 1), round(y + h - 1)
+    x0, y0 = round(x), round(y)
+    x1, y1 = x0 + round(w) - 1, y0 + round(h) - 1
     if x1 < x0 or y1 < y0:
         return
     rr = max(0, min(int(r), (x1 - x0) // 2, (y1 - y0) // 2))

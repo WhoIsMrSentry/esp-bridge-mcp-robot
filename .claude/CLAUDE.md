@@ -24,7 +24,9 @@ Source under `src/`; imports are absolute from there (`from modules.…`). The s
 package installs as `modules`, so `uvx --from git+<repo> pip-robot` runs it with no
 checkout. Settings come from `os.getenv` (every read has a code default). Our
 `modules/espbridge` ≠ the installed `espbridge` library. Add a capability in
-`build_tools`; add a face with one line in the matching `eyes/` file.
+`build_tools`; add a face with one line in the matching `eyes/` file. Eyeball it
+headless with `uv run docs/make_gif.py <face>` (writes a 5-frame `docs/<face>_preview.png`,
+gitignored); no args rebuilds the showcase `docs/pip-eyes.gif`.
 
 ## MCP
 

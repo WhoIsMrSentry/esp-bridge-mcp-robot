@@ -1,15 +1,16 @@
-"""GESTURES -- the moving layer: blinks/winks and one-shot motions.
-Adding a motion = one line in GESTURES_FN."""
+"""GESTURES -- one-shot moves played over the face: blinks (BLINKS) + enveloped
+motions (GESTURES_FN). A motion may register a GESTURE_FX painter (e.g. glitch)."""
 from __future__ import annotations
 
 import math
+
+from PIL import ImageChops
 
 from .primitives import smoothstep
 
 _PI = math.pi
 
-# blink timeline: name -> (eyes, duration, closes, anchor)
-# anchor is where the lid shuts: 0.5 centred, 1.0 from the top, 0.0 from the bottom.
+# name -> (eyes, duration, closes, anchor); anchor: .5 centred, 1 from top, 0 from bottom
 BLINKS = {
     "blink":        ({"left", "right"}, 0.20, 1, 0.5),
     "double_blink": ({"left", "right"}, 0.44, 2, 0.5),
@@ -22,8 +23,7 @@ BLINKS = {
 
 
 def _look(dx, dy, bias=0.0):
-    """A real glance: dart toward (dx, dy) and -- for sideways looks -- swell the near
-    eye while the far one shrinks (the parallax of the head turning). Hold, then return."""
+    """A glance: dart to (dx, dy), parallax-swell the near eye, hold, then return."""
     def fn(p, e):
         if p < 0.22:        # quick dart out
             hold = p / 0.22
@@ -37,73 +37,130 @@ def _look(dx, dy, bias=0.0):
     return fn
 
 
-# one-shot motion: name -> (duration, fn(ph, env) -> (dx, dy, conv, scale_w, scale_h))
-# ph 0..1 is gesture progress; env = sin(ph*pi) fades the move in and out.
+# name -> (duration, fn(ph, env) -> dx, dy, conv, scale_w, scale_h[, bias]); env fades it in/out
 GESTURES_FN = {
-    "smoke":      (3.8, lambda p, e: (0.0, 0.0, 0.0, 1.0, 1.0)),                              # slow drag -- the cigarette does the work
-    "nod":        (1.4, lambda p, e: (0.0, math.sin(p * _PI * 8) * 6 * e, 0.0, 1.0, 1.0)),    # two nods, same speed
-    "refuse":     (1.2, lambda p, e: (math.sin(p * _PI * 12) * 9 * e, 0.0, 0.0, 1.0, 1.0)),   # two shakes, same speed
-    "laugh":      (1.4, lambda p, e: (0.0, -abs(math.sin(p * _PI * 4)) * 7 * e, 0.0, 1.0, 1.0 - 0.4 * e)),
-    "excited":    (0.9, lambda p, e: (0.0, -abs(math.sin(p * _PI * 5)) * 8 * e, 0.0, 1.0 + 0.22 * e, 1.0 + 0.22 * e)),
-    "roll":       (0.9, lambda p, e: (math.cos(p * _PI * 2) * 11 * e, math.sin(p * _PI * 2) * 7 * e, 0.0, 1.0, 1.0)),
-    "shiver":     (0.7, lambda p, e: (math.sin(p * _PI * 16) * 3 * e, math.cos(p * _PI * 22) * 2 * e, 0.0, 1.0, 1.0)),
-    "cross_eyes": (0.9, lambda p, e: (0.0, 0.0, 9.0 * e, 1.0, 1.0)),
-    "pop":        (0.5, lambda p, e: (0.0, 0.0, 0.0, 1.0 + 0.35 * e, 1.0 + 0.35 * e)),
-    "squint":     (1.3, lambda p, e: (0.0, 0.0, 0.0, 1.0, 1.0 - 0.6 * e)),
-    "scan":       (1.3, lambda p, e: (math.sin(p * _PI * 2) * 16 * e, 0.0, 0.0, 1.0, 1.0)),
-    "look_left":  (1.2, _look(-8, 0, -0.2)),   # near (left) eye bigger, right smaller
-    "look_right": (1.2, _look(8, 0, 0.2)),     # near (right) eye bigger, left smaller
-    "look_up":    (1.2, _look(0, -10)),
-    "look_down":  (1.2, _look(0, 10)),
-    "acknowledge": (0.45, lambda p, e: (0.0, e * 8, 0.0, 1.0, 1.0)),                       # one crisp dip -- "on it"
-    "scan_sweep":  (1.6, lambda p, e: (-math.sin(p * _PI * 2) * 15, 0.0, 0.0, 1.0, 1.0)),  # one smooth sensor sweep
+    # -- gaze: glance somewhere; side looks parallax-swell the near eye --
+    "look_left":   (1.2, _look(-8, 0, -0.2)),
+    "look_right":  (1.2, _look(8, 0, 0.2)),
+    "look_up":     (1.2, _look(0, -10)),
+    "look_down":   (1.2, _look(0, 10)),
+    "scan":        (1.3, lambda p, e: (math.sin(p * _PI * 2) * 16 * e, 0.0, 0.0, 1.0, 1.0)),   # darting back-and-forth
+    "scan_sweep":  (1.6, lambda p, e: (-math.sin(p * _PI * 2) * 15, 0.0, 0.0, 1.0, 1.0)),      # one smooth sensor sweep
+    # -- affirm / deny / acknowledge (decaying envelope -> punch, then settle) --
+    "nod":         (1.4, lambda p, e: (0.0, math.sin(p * _PI * 4) * 7 * e * (1.0 - 0.42 * p), 0.0, 1.0, 1.0)),    # nods settling -- yes
+    "refuse":      (1.2, lambda p, e: (math.sin(p * _PI * 6) * 9 * e * (1.0 - 0.45 * p), 0.0, 0.0, 1.0, 1.0)),    # shakes settling -- no
+    "acknowledge": (0.45, lambda p, e: (0.0, e * 8, 0.0, 1.0, 1.0)),                           # one crisp dip -- "on it"
+    # -- expressive wobbles --
+    "laugh":       (1.4, lambda p, e: (0.0, -abs(math.sin(p * _PI * 4)) * 7 * e, 0.0, 1.0, 1.0 - 0.4 * e)),
+    "excited":     (0.9, lambda p, e: (0.0, -abs(math.sin(p * _PI * 5)) * 8 * e, 0.0, 1.0 + 0.22 * e, 1.0 + 0.22 * e)),
+    "roll":        (0.9, lambda p, e: (math.cos(p * _PI * 2) * 11 * e, math.sin(p * _PI * 2) * 7 * e, 0.0, 1.0, 1.0)),
+    "shiver":      (0.7, lambda p, e: (math.sin(p * _PI * 16) * 3 * e, math.cos(p * _PI * 22) * 2 * e, 0.0, 1.0, 1.0)),
+    "pop":         (0.5, lambda p, e: (0.0, 0.0, 0.0, 1.0 + 0.35 * e, 1.0 + 0.35 * e)),
+    "squint":      (1.3, lambda p, e: (0.0, 0.0, 0.0, 1.0, 1.0 - 0.6 * e)),
+    "cross_eyes":  (0.9, lambda p, e: (0.0, 0.0, 9.0 * e, 1.0, 1.0)),
 }
 
-def _smoking_act(d, W, H, p, e):
-    """Lift the cigarette to the lips with a thin curl of smoke (like the smoking mood);
-    on the slow inhale the wisp fades; on the exhale the cig pulls away and a thick plume pours out."""
-    mx, my = W * 0.5, H - 9                            # the mouth
-    lift = smoothstep(p / 0.12)                       # bring the cigarette up to the lips
-    away = smoothstep((p - 0.55) / 0.30) if p > 0.55 else 0.0   # then pull it away on the exhale
-    ax, ay = away * 10, away * 8
-    rfx, rfy = W * 0.55, H - 1                          # resting hold, low
-    # filter end at the lips; the body + ember reach out so the cigarette stays visible
-    fx, fy = rfx + (mx - 4 - rfx) * lift + ax, rfy + (my - rfy) * lift + ay
-    ex, ey = rfx + 18 + (mx + 16 - (rfx + 18)) * lift + ax, rfy - 3 + (my - 2 - (rfy - 3)) * lift + ay
-    d.line([fx, fy, ex, ey], fill=1, width=3)         # cigarette body
-    glow = 3 if 0.35 <= p < 0.55 else 2               # ember flares as the breath is drawn in
-    d.ellipse([ex - glow, ey - glow, ex + glow, ey + glow], fill=1)
 
-    thin = lift if p < 0.35 else max(0.0, 1.0 - smoothstep((p - 0.35) / 0.20))  # wisp fades on the inhale
-    if thin > 0.03:
-        pts = [(ex + math.sin(f * 4.5 - p * 9) * (f * f * 5), ey - 2 - f * 20 * thin)
-               for f in (i / 10 for i in range(11))]
-        d.line(pts, fill=1, width=1)                   # a single thin curl off the tip
+# ---- glitch crash-fit: corruption effects tear the eyes apart (Watch Dogs style) ----
+# Each shares (d, img, W, H, p, seed, amp); img None -> the pixel-movers no-op.
+_GLITCH_DUR = 1.4   # seconds -- a sustained fit, then it settles back
 
-    if p <= 0.55:
+
+def _datamosh(d, img, W, H, p, seed, amp):
+    """Yank a few horizontal slices of the frame sideways -- the classic datamosh tear."""
+    if img is None:
         return
-    eq = (p - 0.55) / 0.45                            # 0..1 across the exhale
-    rise = smoothstep(eq) * 1.7                       # the plume drifts slowly upward
-    fade = 1.0 if eq < 0.4 else smoothstep((1.0 - eq) / 0.6)   # then dissipates gently, over a long tail
-    for i in range(22):
-        f = i / 21.0
-        front = rise - f * 0.9
-        if front <= 0:
-            continue
-        cxl = mx + math.sin(f * 3.4 + p * 4) * (2 + f * 11)
-        spread = 3 + f * 16
-        base = (2.5 + f * 8) * min(1.0, front * 2.4) * fade   # fade shrinks every puff toward the end
-        for j in (-1, 0, 1):                          # a few puffs across the width -> a full, soft plume
-            bx, by = cxl + j * spread * 0.5, my - f * (my + 2) - rise * 3   # the whole plume drifts up as it fades
-            rad = base * (1.0 - 0.28 * abs(j))
-            if rad > 0.5:
-                d.ellipse([bx - rad, by - rad, bx + rad, by + rad], fill=1)
+    for k in range(3):
+        y = (seed * 13 + k * 29) % (H - 4)
+        h = 2 + (seed + k) % 4
+        dx = (seed * 7 + k * 17) % (2 * amp + 1) - amp
+        strip = img.crop((0, y, W, y + h))
+        img.paste(0, (0, y, W, y + h))                       # clear the band, then drop it back shifted
+        img.paste(strip, (dx, y))
 
+
+def _displace_blocks(d, img, W, H, p, seed, amp):
+    """Shove a couple of rectangular blocks off-register."""
+    if img is None:
+        return
+    for k in range(2):
+        bw, bh = 16 + (seed * 5 + k * 11) % 22, 6 + (seed * 3 + k * 7) % 12
+        x = (seed * 9 + k * 23) % max(1, W - bw)
+        y = (seed * 4 + k * 19) % max(1, H - bh)
+        dx = (seed * 7 + k * 13) % (2 * amp + 1) - amp
+        img.paste(img.crop((x, y, x + bw, y + bh)), (x + dx, y))
+
+
+def _scanlines(d, img, W, H, p, seed, amp):
+    """Carve CRT scanlines and drop a chunky static band over them."""
+    for y in range(seed % 3, H, 3):
+        d.line([0, y, W, y], fill=0, width=1)
+    u, by = 4, int(abs(math.sin(seed * 0.13)) * (H // 4)) * 4
+    for c in range(W // u):
+        if math.sin(c * 12.9898 + seed * 78.233) * 43758.5453 % 1.0 > 0.5:
+            d.rectangle([c * u, by, c * u + u - 1, by + u - 1], fill=1)
+
+
+def _ghost(d, img, W, H, p, seed, amp):
+    """OR an offset copy of the frame on top -- double-vision ghosting."""
+    if img is None:
+        return
+    img.paste(ImageChops.lighter(img, ImageChops.offset(img, amp, 0)), (0, 0))
+
+
+def _code_rain(d, img, W, H, p, seed, amp):
+    """Stream short vertical dashes down the screen -- Matrix code-rain."""
+    for col in range(6):
+        x = 6 + col * (W - 12) // 5
+        head = (p * (20 + (seed + col * 7) % 14) + col * 3.3) % (H + 10) - 5
+        for j in range(4):
+            y = int(head - j * 5)
+            if 0 <= y < H:
+                d.line([x, y, x, y + 3], fill=1, width=1)
+
+
+def _invert_flash(d, img, W, H, p, seed, amp):
+    """Flip the whole frame for a hard glitch pop."""
+    if img is None:
+        return
+    img.paste(ImageChops.invert(img.convert("L")).convert("1"), (0, 0))
+
+
+# the gesture plays through these beats in order; None = a clean flicker gap between bursts
+_GLITCH_BEATS = (_datamosh, _scanlines, None, _displace_blocks, _code_rain, None,
+                 _datamosh, _ghost, _invert_flash, None, _displace_blocks, _scanlines,
+                 None, _code_rain, _datamosh, None, _ghost, _displace_blocks, None,
+                 _scanlines, _datamosh, None)
+
+
+def _glitch_jolt(p, e):
+    """Eye motion: chunky sideways/vertical kicks on active beats, dead still on the gaps."""
+    f = int(p * len(_GLITCH_BEATS)) % len(_GLITCH_BEATS)
+    if _GLITCH_BEATS[f] is None:                             # clean beat -> hold steady
+        return 0.0, 0.0, 0.0, 1.0, 1.0
+    jx = math.sin(f * 12.9898) * 43758.5453 % 1.0            # per-beat pseudo-random 0..1
+    jy = math.sin(f * 91.37) * 43758.5453 % 1.0
+    dx = (round(jx * 4) - 2) * 3 * e                         # chunky horizontal kick (steps of 3px)
+    dy = (round(jy * 2) - 1) * 2 * e                         # smaller vertical jump
+    sw = 1.0 + (round(jx * 2) - 1) * 0.16 * e                # brief width stretch/squash
+    return dx, dy, 0.0, sw, 1.0
+
+
+def _glitch_effects(d, W, H, p, e):
+    """Paint this beat's corruption onto the live frame (no-op on a clean beat)."""
+    f = int(p * len(_GLITCH_BEATS)) % len(_GLITCH_BEATS)
+    effect = _GLITCH_BEATS[f]
+    if effect is None:
+        return
+    effect(d, getattr(d, "_image", None), W, H, p, f * 7 + 1, max(2, int(8 * e)))
+
+
+GESTURES_FN["glitch"] = (_GLITCH_DUR, _glitch_jolt)          # crash fit -- corruption tears the eyes
 
 # gesture-time painters: name -> fn(d, W, H, ph, env), drawn on top of the face
-GESTURE_FX = {"smoke": _smoking_act}
+GESTURE_FX = {"glitch": _glitch_effects}
 
 # while a gesture plays, wear another mood's eye-look (name -> mood whose paint to borrow)
-GESTURE_FACE = {"smoke": "bored"}
+GESTURE_FACE = {}
 
 GESTURES = ("none",) + tuple(BLINKS) + tuple(GESTURES_FN)
