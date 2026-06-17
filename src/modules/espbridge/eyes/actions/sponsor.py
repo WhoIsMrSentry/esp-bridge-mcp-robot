@@ -15,7 +15,7 @@ Inverted codes scan on modern phones (iOS/Android). Regenerate _QR if the URL ch
 import hashlib
 import math
 
-from ..engine import rounded_rect, smoothstep
+from ..primitives import rounded_rect, smoothstep
 from ..painters import sparkle
 from ..spec import Action
 

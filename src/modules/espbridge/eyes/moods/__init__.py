@@ -1,11 +1,11 @@
 """Held expressions. Add one: drop `<name>.py` here exposing `MOOD = Mood(...)`, then slot
 its name into the curated order below (the order drives the menu, the showcase, the LLM enum)."""
-from importlib import import_module
+from .._registry import load
 
 # -- curated display order, grouped by feel --
 _ORDER = (
-    # baseline & system
-    "neutral", "alert", "attentive", "standby",
+    # system
+    "alert", "attentive", "standby",
     # positive / warm
     "happy", "lovely", "kawaii", "awe", "cool",
     # focus / calm
@@ -16,6 +16,8 @@ _ORDER = (
     "angry", "furious", "devil", "suspicious", "skeptical",
     # dazed / goofy / off
     "surprised", "dumb", "confused", "disoriented", "bored", "dead",
+    # baseline
+    "neutral",
 )
 
-MOODS = {n: import_module(f"{__name__}.{n}").MOOD for n in _ORDER}   # name -> Mood, in order
+MOODS = load(__name__, _ORDER, "MOOD")   # name -> Mood, curated order (errors on a stray file)

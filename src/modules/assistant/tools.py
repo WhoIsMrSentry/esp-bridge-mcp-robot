@@ -27,7 +27,7 @@ def build_tools(eyes, mgr=None):
             system:         alert (attention), standby (low-power sleep).
         gesture: a momentary animation that plays once over the face, then the
             emotion resumes.
-            blinks:  blink, double_blink, blink_up, blink_down, wink, wink_left,
+            blinks:  blink, double_blink, blink_up, blink_down, wink_left,
                 wink_right;
             gaze:    look_left, look_right, look_up, look_down, scan, scan_sweep;
             react:   nod, refuse, acknowledge, laugh, excited, roll, shiver,

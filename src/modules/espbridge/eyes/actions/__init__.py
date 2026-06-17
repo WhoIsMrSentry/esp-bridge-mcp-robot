@@ -1,7 +1,7 @@
 """Looping task statuses. Add one: drop `<name>.py` here exposing `ACTION = Action(...)`, then
 slot its name into the curated order below. ('idle' isn't an entry -- it's the resting stop:
 set_activity('idle'), or any unknown name, just stops whatever's looping.)"""
-from importlib import import_module
+from .._registry import load
 
 # -- curated order; work, then links/holding, then a break --
 _ORDER = (
@@ -14,4 +14,4 @@ _ORDER = (
     "sponsor",                                                    # GitHub Sponsors QR + heart
 )
 
-ACTIONS = {n: import_module(f"{__name__}.{n}").ACTION for n in _ORDER}   # name -> Action, in order
+ACTIONS = load(__name__, _ORDER, "ACTION")   # name -> Action, curated order (errors on a stray file)

@@ -1,7 +1,7 @@
 """Three cubes fly in, stack, then tumble off -- building."""
 import math
 
-from ..engine import rand, smoothstep
+from ..primitives import rand, smoothstep
 from ..spec import Action
 
 

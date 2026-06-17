@@ -1,7 +1,7 @@
 """Leaned back, a lit cigarette at the lips with occasional drags -- smoking."""
 import math
 
-from ..engine import rand, smoothstep
+from ..primitives import rand, smoothstep
 from ..spec import Action
 
 drag_chance = 0.4    # probability of a drag per 10s window (0..1) -- set from outside to taste

@@ -2,7 +2,7 @@
 import itertools
 import math
 
-from ..engine import rand
+from ..primitives import rand
 from ..spec import Action
 
 _WORD = "waiting"

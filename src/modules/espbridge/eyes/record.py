@@ -16,10 +16,6 @@ FPS = 24      # capture / playback frame rate (matches the real panel)
 SCALE = 3     # pixel zoom of the output GIF
 
 
-def _gesture_dur(name):
-    return GESTURES[name].dur
-
-
 def record_gif(kind, name, *, seconds=30.0, fps=FPS, scale=SCALE, out=None):
     """Render `seconds` of one face to a looping GIF; returns the written path."""
     try:
@@ -40,7 +36,7 @@ def record_gif(kind, name, *, seconds=30.0, fps=FPS, scale=SCALE, out=None):
     else:
         eyes.play_gesture(name)
 
-    period = _gesture_dur(name) if kind == "gesture" else None   # re-fire one-shots
+    period = GESTURES[name].dur if kind == "gesture" else None   # re-fire one-shots
     next_fire = period
     frames = []
     for _ in range(max(1, round(seconds * fps))):

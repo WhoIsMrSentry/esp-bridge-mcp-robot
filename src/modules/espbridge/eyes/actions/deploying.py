@@ -3,7 +3,7 @@ import math
 
 from PIL import Image, ImageDraw, ImageFilter
 
-from ..engine import rand
+from ..primitives import frame, rand
 from ..spec import Action
 
 
@@ -63,7 +63,7 @@ def _overlay(d, W, H, now, ox=0.0, oy=0.0):  # the Docker whale -- a 'D' stacked
     belly = [(x, surf(x)) for x in range(0, W + 1, 2)] + [(W, H), (0, H)]
     ImageDraw.Draw(lay).polygon(belly, fill=0)                                 # the belly dips into the water
 
-    base = d._image
+    base = frame(d)
     base.paste(0, (0, 0), lay.convert("L").filter(ImageFilter.MaxFilter(3)).convert("1"))  # 1px black outline
     base.paste(1, (0, 0), lay)                                                             # then the white whale
     d.line([(x, surf(x)) for x in range(0, W + 1, 2)], fill=1, width=1, joint="curve")     # the sea surface, on top

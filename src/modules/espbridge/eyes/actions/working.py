@@ -3,7 +3,7 @@ import math
 
 from PIL import Image, ImageDraw, ImageFilter
 
-from ..engine import smoothstep
+from ..primitives import frame, smoothstep
 from ..spec import Action
 
 
@@ -56,7 +56,7 @@ def _overlay(d, W, H, now, ox=0.0, oy=0.0):  # a cartoon smith: big wind-up, a S
             if sy < ay - 0.5:
                 g.line([sx, sy, sx - vx * 0.022, sy - vy * 0.022], fill=1, width=1)
 
-    base = d._image
+    base = frame(d)
     base.paste(0, (0, 0), lay.convert("L").filter(ImageFilter.MaxFilter(3)).convert("1"))  # 1px black outline
     base.paste(1, (0, 0), lay)                                                             # then the white assembly
 

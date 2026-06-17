@@ -1,7 +1,7 @@
 """Eyes softly shut + cherry blossoms on a living breeze -- in flow."""
 import math
 
-from ..engine import rand
+from ..primitives import rand
 from ..painters import lids
 from ..spec import Mood
 

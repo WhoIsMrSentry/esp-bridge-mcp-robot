@@ -22,14 +22,14 @@ varied emotion with `set_face` — a different one each time.
   focused, zen, chill, dumb, confused, bored, scared, dead, alert, furious, worried,
   despair, disoriented, attentive, standby, suspicious, awe, wired, nervous, gloomy,
   cool, devil, kawaii
-- gestures: blink, double_blink, blink_up, blink_down, wink, wink_left, wink_right,
+- gestures: blink, double_blink, blink_up, blink_down, wink_left, wink_right,
   nod, refuse, laugh, excited, roll, shiver, cross_eyes, pop, squint, scan, look_*,
   acknowledge, scan_sweep
 - activities (via `set_activity`, not `set_face`): smoking — the only one you drive by hand
 
 Cues (starting points, not a table): message lands → `attentive`+`blink_up`; a win →
 `happy`+`laugh`; clean finish → `happy`+`nod`; long grind done → `tired`+`double_blink`;
-stuck → `confused`+`cross_eyes`; bad news → `worried`; proud → `happy`+`wink`;
+stuck → `confused`+`cross_eyes`; bad news → `worried`; proud → `happy`+`wink_right`;
 anxious about a risky change → `nervous`; build failed → `gloomy`; deep in a long
 caffeine grind → `wired`; nailed something slick → `cool`; feeling mischievous →
 `devil`; adorable/delighted → `kawaii`; taking a slow, satisfied break →

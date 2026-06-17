@@ -1,9 +1,9 @@
-"""EyeEngine -- threaded renderer for the mood / gesture / activity layers, plus the shared
-eye math every layer builds on (ease / smoothstep / lid_openness / rounded_rect / look / rand).
-One move at a time (blink or gesture); a separate eased pose glides gaze + size.
+"""EyeEngine -- threaded renderer for the mood / gesture / activity layers. One move at a time
+(blink or gesture); a separate eased pose glides gaze + size.
 
-This module imports nothing else from the package at load time (the registries are pulled in
-lazily, inside EyeEngine), so any effect file can `from ..engine import smoothstep` freely."""
+The pure eye math lives in primitives.py; this module keeps the renderer, the shared `look`
+glance helper, and the license lock. Effects import primitives for math (not this module), and
+the registries are pulled in lazily inside EyeEngine, so there's no import cycle."""
 from __future__ import annotations
 
 import math
@@ -13,6 +13,8 @@ import threading
 import time
 
 from PIL import Image, ImageDraw
+
+from .primitives import ease, lid_openness, rounded_rect, smoothstep
 
 _TAU_GAZE, _TAU_SIZE = 0.09, 0.11            # gaze / eye-size settle time-constants
 _AUTO = ({"left", "right"}, 0.20, 1)         # spontaneous blink (eyes, dur, reps)
@@ -27,51 +29,7 @@ _SPONSOR_FINGERPRINT = "4f93689635e17c20911891a195de5050b5b379f4ce815e7e460227ea
 _sponsor_checked = False                     # print the notice at most once per process
 
 
-# ----------------------------------------------------------- shared eye math
-def ease(cur, tgt, dt, tau):
-    """Frame-rate-independent exponential approach of cur -> tgt."""
-    return tgt + (cur - tgt) * math.exp(-dt / tau)
-
-
-def smoothstep(k):
-    """Hermite ease 0..1 with flat ends; clamps out-of-range input."""
-    k = max(0.0, min(1.0, k))
-    return k * k * (3 - 2 * k)
-
-
-_NOISE = (12.9898, 78.233, 37.719, 51.07, 19.33)     # value-noise coefficients (irrational-ish)
-
-
-def rand(*xs):
-    """The one deterministic pseudo-random for every effect: fixed inputs -> a fixed 0..1, stable
-    every frame. Replaces the per-file `sin(x*12.9898)*43758.5453 % 1` lambdas -- pass a seed (and
-    any salts) for an independent stream, e.g. rand(slot), rand(slot, i)."""
-    return (math.sin(sum(x * k for x, k in zip(xs, _NOISE))) * 43758.5453) % 1.0
-
-
-def lid_openness(u, reps, close=0.34):
-    """Eyelid openness over a blink, 1->0->1 x reps; asymmetric -- snaps shut, eases open."""
-    seg = (max(0.0, min(1.0, u)) * reps) % 1.0
-    if seg < close:
-        return 1.0 - smoothstep(seg / close)              # fast close
-    return smoothstep((seg - close) / (1.0 - close))      # slower open
-
-
-def rounded_rect(d, x, y, w, h, r, fill):
-    """Rounded rect, clamped radius; rounds size once so a sub-pixel drift slides it rigidly."""
-    if w <= 0 or h <= 0:
-        return
-    x0, y0 = round(x), round(y)
-    x1, y1 = x0 + round(w) - 1, y0 + round(h) - 1
-    if x1 < x0 or y1 < y0:
-        return
-    rr = max(0, min(int(r), (x1 - x0) // 2, (y1 - y0) // 2))
-    if rr <= 0:
-        d.rectangle([x0, y0, x1, y1], fill=fill)
-    else:
-        d.rounded_rectangle([x0, y0, x1, y1], radius=rr, fill=fill)
-
-
+# ----------------------------------------------------------- gesture motion helper
 def look(dx, dy, bias=0.0):
     """A glance motion: dart to (dx, dy), parallax-swell the near eye, hold, then return.
     Returns a gesture motion fn(p, env); shared by the look_left/right/up/down gestures."""

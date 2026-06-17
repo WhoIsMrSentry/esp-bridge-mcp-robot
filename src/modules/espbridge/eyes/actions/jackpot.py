@@ -9,7 +9,7 @@ import math
 
 from PIL import Image, ImageDraw, ImageFont
 
-from ..engine import rand
+from ..primitives import frame, rand
 from ..painters import sparkle
 from ..spec import Action
 
@@ -195,7 +195,7 @@ def _draw_coins(d, W, H, ct, seed):
 def _overlay(d, W, H, now, ox=0.0, oy=0.0):
     t = _elapsed(now)
     seed = _state["start"] or now
-    img = getattr(d, "_image", None)
+    img = frame(d)
     lx = (W - (2 * _EYE_W + _GAP)) // 2                  # left-eye slot origin
     cy = (H - _EYE_H) // 2 + _EYE_H / 2 + oy             # eye centre (rides the gaze)
     if img is not None:

@@ -14,7 +14,7 @@ class NullDisplay:
     def show(self, image=None):
         pass
 
-    def contrast(self, value=0):
+    def contrast(self, value):
         pass
 
     def clear(self):
