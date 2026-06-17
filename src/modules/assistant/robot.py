@@ -26,6 +26,9 @@ class Robot:
                              set_brightness=self.oled.contrast,
                              bright=int(os.getenv("ROBOT_BRIGHTNESS", "255")))
         self.eyes.start()
+        if self.bridge_mgr is not None:          # board attached -> ping_pong reads real RTT off the live link
+            from modules.espbridge.eyes.actions import ping_pong
+            ping_pong.bind(lambda: self.bridge_mgr.bridge().ping())
         self.tools = build_tools(self.eyes, self.bridge_mgr)
 
     def run_chat(self):

@@ -7,10 +7,12 @@ from .._registry import load
 _ORDER = (
     "thinking", "scanning", "searching", "processing",           # heads-down work
     "working", "editing", "debugging", "building", "testing", "deploying",
-    "connecting", "listening", "waiting",                        # links & holding pattern
+    "connecting", "ping_pong", "listening", "waiting",           # links & holding pattern
     "smoking",                                                    # a chilled break
     "glitch",                                                     # a crash / corruption fit
     "jackpot",                                                    # slot-machine reels + a coin shower
+    "matrix", "warp", "recording",                                # visual fx
+    "clock", "weather", "now_playing", "notif_badge",             # info widgets
     "sponsor",                                                    # GitHub Sponsors QR + heart
 )
 

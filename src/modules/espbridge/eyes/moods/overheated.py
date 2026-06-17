@@ -13,24 +13,15 @@ it. Two parts:
 
 The eyes themselves carry a light, tired lid-droop -- worn out -- under the haze.
 
-Self-check: run this file directly (`python overheated.py`).
+Self-check: `cd src && uv run python -m modules.espbridge.eyes.moods.overheated`.
 ponytail: O(cells) mesh per frame, fine at 128x64; bump _STEP down for a finer warp if wanted."""
 import math
 
-try:                                       # normal package import
-    from ..primitives import frame, rand
-    from ..painters import brow, lids
-    from ..spec import Mood
-except ImportError:                        # run directly -> self-check only
-    def frame(d):
-        return getattr(d, "_image", None)
-
-    def rand(*xs):                          # mirror primitives.rand for the standalone check
-        k = (12.9898, 78.233, 37.719, 51.07, 19.33)
-        return (math.sin(sum(x * c for x, c in zip(xs, k))) * 43758.5453) % 1.0
-    Mood = None
-
 from PIL import Image
+
+from ..painters import brow, lids
+from ..primitives import frame, rand
+from ..spec import Mood
 
 _RISE = 26.0       # px/s the heat haze climbs (buoyant convection)
 _AMP = 3.0         # px peak lateral refraction (gentle "shimmer")
@@ -101,10 +92,10 @@ def _decor(d, W, H, now, ox=0.0, oy=0.0):
     if img is None:
         return
     _refract(img, now)             # bend the eyes through the haze
-    _heat_particles(d, W, H, now)  # heat motes rising off the left edge
+    _heat_particles(d, W, H, now)  # heat motes rising off the bottom
 
 
-MOOD = Mood("overheated", paint=_paint, decor=_decor) if Mood else None
+MOOD = Mood("overheated", paint=_paint, decor=_decor)
 
 
 def _selfcheck():

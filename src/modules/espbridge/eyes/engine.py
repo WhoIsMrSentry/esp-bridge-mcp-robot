@@ -97,7 +97,7 @@ class EyeEngine:
         self.look_x = self.look_y = 0.0                  # resting gaze target
         self._blink = self._gesture = self._activity = None
         self._activity_start = 0.0                        # clock time the current activity began
-        self._next_blink = self._next_idle = 0.0
+        self._next_blink = self._next_idle = self._next_tic = 0.0
         self._stop = threading.Event()
         self._thread = None
 
@@ -143,17 +143,20 @@ class EyeEngine:
 
     def play_gesture(self, name):
         """Play a commanded blink/gesture; preempts whatever's on the moving layer."""
-        g = self.GESTURES.get((name or "none").lower())
-        if g is None:                                    # "none" / unknown -> no-op
-            return
-        now = self._clock()
         with self._lock:
-            if g.blink:
-                self._begin_blink(now, (g.blink[0], g.dur, g.blink[1]))
-            else:                                        # enveloped motion
-                self._blink = None
-                self._gesture = {"kind": g.name, "start": now, "dur": g.dur}
-                self._next_blink = now + g.dur + random.uniform(*_BLINK_GAP)   # no spontaneous blink piling on
+            self._play(name, self._clock())
+
+    def _play(self, name, now):
+        """Start a blink/gesture on the moving layer (caller holds the lock; unknown -> no-op)."""
+        g = self.GESTURES.get((name or "none").lower())
+        if g is None:
+            return
+        if g.blink:
+            self._begin_blink(now, (g.blink[0], g.dur, g.blink[1]))
+        else:                                            # enveloped motion
+            self._blink = None
+            self._gesture = {"kind": g.name, "start": now, "dur": g.dur}
+            self._next_blink = now + g.dur + random.uniform(*_BLINK_GAP)   # no spontaneous blink piling on
 
     def set_activity(self, name):
         """Loop a status animation ('idle'/unknown stops it). The action wears its OWN fitting
@@ -163,6 +166,9 @@ class EyeEngine:
         with self._lock:
             self._activity = act if act in self.ACTIONS else None
             self._activity_start = self._clock()
+            tic = self.ACTIONS[self._activity].tic if self._activity else None
+            if tic:                                       # align the periodic gesture to its period grid
+                self._next_tic = (int(self._activity_start / tic[1]) + 1) * tic[1]
 
     def _face(self, mood, act):
         """The mood actually rendered: an active action wears its own fitting face,
@@ -217,9 +223,16 @@ class EyeEngine:
             face = self._face(self.mood, self._activity)  # the mood actually on screen (action's, else held)
             act = self._activity                          # an action may also hold still (jackpot's reels)
             still = self.MOODS[face].still or (act is not None and self.ACTIONS[act].still)
+            tic = self.ACTIONS[act].tic if act else None  # action's periodic gesture (e.g. a wink)
             if free and self._pending:                    # masked deferred mood swap
                 self.mood, self._pending = self._pending, None
                 self._begin_blink(now, _MASK)
+            elif free and tic and now >= self._next_tic:  # action's own beat -> play it on the move layer
+                name = tic[0](now)                        # resolver -> a gesture name, or None to skip
+                if name:
+                    self._play(name, now)
+                while self._next_tic <= now:              # stay on the period grid (synced to the overlay)
+                    self._next_tic += tic[1]
             elif free and now >= self._next_blink:        # spontaneous blink (unless mood holds still)
                 if still:
                     self._next_blink = now + random.uniform(*_BLINK_GAP)   # zen: just reschedule, no blink
