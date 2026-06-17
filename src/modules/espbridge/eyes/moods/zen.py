@@ -1,6 +1,7 @@
 """Eyes softly shut + cherry blossoms on a living breeze -- in flow."""
 import math
 
+from ..engine import rand
 from ..painters import lids
 from ..spec import Mood
 
@@ -26,8 +27,9 @@ def _decor(d, W, H, now, ox=0.0, oy=0.0):  # cherry blossoms on a living breeze 
     for i in range(9):                                             # spawn slots; ~3-5 on screen at once
         T = 14.0 + i % 4 * 2.0                                     # this slot's spawn cycle (14..20s)
         u = now / T + i * 0.41
-        cyc, el = int(u), (u - int(u)) * T                        # cycle index + seconds since this leaf spawned
-        r = lambda n: (math.sin((i * 9 + cyc * 131 + n * 7.1) * 12.9898) * 43758.5453) % 1.0  # re-rolled each spawn
+        cyc = int(u)
+        el = (u - cyc) * T                                        # cycle index + seconds since this leaf spawned
+        r = lambda n: rand(i * 9 + cyc * 131 + n * 7.1)       # re-rolled each spawn (shared hash)
         m = r(0)                                                   # weight: 0 light .. 1 heavy
         vfall = 6.0 + m * 10.0                                     # terminal fall (px/s): light hangs, heavy drops
         sail = 0.5 + (1 - m) * 1.7 + r(1) * 0.7                    # wind catch: light catches more + its own "sail"

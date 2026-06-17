@@ -9,6 +9,7 @@ import math
 
 from PIL import ImageChops
 
+from ..engine import rand
 from ..spec import Action
 
 _BEAT = 0.07   # seconds per corruption beat
@@ -48,7 +49,7 @@ def _scanlines(d, img, W, H, t, seed, amp):
         d.line([0, y, W, y], fill=0, width=1)
     u, by = 4, int(abs(math.sin(seed * 0.13)) * (H // 4)) * 4
     for c in range(W // u):
-        if math.sin(c * 12.9898 + seed * 78.233) * 43758.5453 % 1.0 > 0.5:
+        if rand(c, seed) > 0.5:
             d.rectangle([c * u, by, c * u + u - 1, by + u - 1], fill=1)
 
 
@@ -88,8 +89,8 @@ def _pose(now):   # nervous eye jitter -- chunky kicks on active beats, still on
     f = int(now / _BEAT) % len(_BEATS)
     if _BEATS[f] is None:                                    # clean beat -> hold steady
         return 0.0, 0.0, 1.0
-    jx = (math.sin(f * 12.9898) * 43758.5453) % 1.0          # per-beat pseudo-random 0..1
-    jy = (math.sin(f * 91.37) * 43758.5453) % 1.0
+    jx = rand(f)                                             # per-beat pseudo-random 0..1
+    jy = rand(f, 7)                                          # a salt -> an independent stream
     return (round(jx * 4) - 2) * 3, (round(jy * 2) - 1) * 2, 1.0   # kick the gaze sideways/up
 
 
@@ -102,7 +103,7 @@ def _overlay(d, W, H, now, ox=0.0, oy=0.0):   # paint this beat's corruption ont
 
 def _expired(now, start):   # roll a die each 3s window; a 50% hit ends the fit, seeded by the start
     k = int((now - start) / _ROLL)                          # window index (0 = before the first roll)
-    return k >= 1 and (math.sin((start + k * 7.31) * 12.9898) * 43758.5453) % 1.0 < _HEAL_ODD
+    return k >= 1 and rand(start + k * 7.31) < _HEAL_ODD
 
 
 ACTION = Action("glitch", mood="scared", pose=_pose, overlay=_overlay, expired=_expired)

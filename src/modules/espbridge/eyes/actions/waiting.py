@@ -2,6 +2,7 @@
 import itertools
 import math
 
+from ..engine import rand
 from ..spec import Action
 
 _WORD = "waiting"
@@ -32,8 +33,7 @@ def _pose(now):   # idle stare at the prompt, the odd lazy drift
 
 def _speaks(bucket):
     """Deterministic per-tick coin flip off the virtual clock -> True ~70% of ticks."""
-    x = math.sin((bucket + 1) * 12.9898) * 43758.5453
-    return (x - math.floor(x)) < _CHANCE
+    return rand(bucket + 1) < _CHANCE
 
 
 def _script(now):

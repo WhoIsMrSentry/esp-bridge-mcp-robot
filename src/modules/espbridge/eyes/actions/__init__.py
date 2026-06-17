@@ -10,6 +10,7 @@ _ORDER = (
     "connecting", "listening", "waiting",                        # links & holding pattern
     "smoking",                                                    # a chilled break
     "glitch",                                                     # a crash / corruption fit
+    "jackpot",                                                    # slot-machine reels + a coin shower
     "sponsor",                                                    # GitHub Sponsors QR + heart
 )
 

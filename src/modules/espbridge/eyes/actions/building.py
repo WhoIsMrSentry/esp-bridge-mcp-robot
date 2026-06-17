@@ -1,7 +1,7 @@
 """Three cubes fly in, stack, then tumble off -- building."""
 import math
 
-from ..engine import smoothstep
+from ..engine import rand, smoothstep
 from ..spec import Action
 
 
@@ -25,7 +25,6 @@ def _overlay(d, W, H, now, ox=0.0, oy=0.0):  # 3 cubes fly in, stack, then tumbl
     cyc, lp = int(now / T), now % T
     cx = W / 2
     slot_y = (H - 9, H - 9 - (s + 2), H - 9 - 2 * (s + 2))           # stack bottom -> top
-    rnd = lambda a: (math.sin(a * 12.9898) * 43758.5453) % 1.0       # deterministic pseudo-random
     for i in range(3):
         ty = slot_y[i]
         if lp < asm:                                                 # assembling, one cube at a time
@@ -33,7 +32,7 @@ def _overlay(d, W, H, now, ox=0.0, oy=0.0):  # 3 cubes fly in, stack, then tumbl
             if lp < start:
                 continue                                             # this cube hasn't entered yet
             k = smoothstep(min(1.0, (lp - start) / step))            # eased fly-in 0..1
-            dirn = int(rnd(cyc * 9.7 + i * 4.3) * 3)                 # 0 left / 1 right / 2 top
+            dirn = int(rand(cyc * 9.7 + i * 4.3) * 3)                # 0 left / 1 right / 2 top
             sx, sy = (-14, ty) if dirn == 0 else (W + 14, ty) if dirn == 1 else (cx, -14)
             x, y = sx + (cx - sx) * k, sy + (ty - sy) * k
         elif lp < asm + hold:                                        # the finished tower stands a beat

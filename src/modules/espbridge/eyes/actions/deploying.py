@@ -3,9 +3,8 @@ import math
 
 from PIL import Image, ImageDraw, ImageFilter
 
+from ..engine import rand
 from ..spec import Action
-
-_rnd = lambda n: (math.sin(n * 12.9898) * 43758.5453) % 1.0     # cheap deterministic hash 0..1
 
 
 def _make_spectrum():
@@ -14,9 +13,9 @@ def _make_spectrum():
     # long waves run faster -- deep-water dispersion omega = sqrt(g*k).
     waves = []
     for i in range(7):
-        k = 2 * math.pi / (15 + _rnd(i) * 90)                  # random 15..105px wavelength
-        waves.append((k, math.sqrt(5.0 * k) * (0.9 + 0.2 * _rnd(i + 13)),
-                      _rnd(i + 23) * 6.283, 0.25 + 0.8 * _rnd(i + 7)))
+        k = 2 * math.pi / (15 + rand(i) * 90)                  # random 15..105px wavelength
+        waves.append((k, math.sqrt(5.0 * k) * (0.9 + 0.2 * rand(i + 13)),
+                      rand(i + 23) * 6.283, 0.25 + 0.8 * rand(i + 7)))
     return waves
 
 

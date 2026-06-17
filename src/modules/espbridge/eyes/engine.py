@@ -1,5 +1,5 @@
 """EyeEngine -- threaded renderer for the mood / gesture / activity layers, plus the shared
-eye math every layer builds on (ease / smoothstep / lid_openness / rounded_rect / look).
+eye math every layer builds on (ease / smoothstep / lid_openness / rounded_rect / look / rand).
 One move at a time (blink or gesture); a separate eased pose glides gaze + size.
 
 This module imports nothing else from the package at load time (the registries are pulled in
@@ -37,6 +37,16 @@ def smoothstep(k):
     """Hermite ease 0..1 with flat ends; clamps out-of-range input."""
     k = max(0.0, min(1.0, k))
     return k * k * (3 - 2 * k)
+
+
+_NOISE = (12.9898, 78.233, 37.719, 51.07, 19.33)     # value-noise coefficients (irrational-ish)
+
+
+def rand(*xs):
+    """The one deterministic pseudo-random for every effect: fixed inputs -> a fixed 0..1, stable
+    every frame. Replaces the per-file `sin(x*12.9898)*43758.5453 % 1` lambdas -- pass a seed (and
+    any salts) for an independent stream, e.g. rand(slot), rand(slot, i)."""
+    return (math.sin(sum(x * k for x, k in zip(xs, _NOISE))) * 43758.5453) % 1.0
 
 
 def lid_openness(u, reps, close=0.34):
@@ -247,7 +257,8 @@ class EyeEngine:
                     self._activity = None                    # it decided it's done -> back to normal
             free = not (self._blink or self._gesture)
             face = self._face(self.mood, self._activity)  # the mood actually on screen (action's, else held)
-            still = self.MOODS[face].still                # zen: holds gaze centred, no spontaneous blink
+            act = self._activity                          # an action may also hold still (jackpot's reels)
+            still = self.MOODS[face].still or (act is not None and self.ACTIONS[act].still)
             if free and self._pending:                    # masked deferred mood swap
                 self.mood, self._pending = self._pending, None
                 self._begin_blink(now, _MASK)

@@ -1,7 +1,7 @@
 """Leaned back, a lit cigarette at the lips with occasional drags -- smoking."""
 import math
 
-from ..engine import smoothstep
+from ..engine import rand, smoothstep
 from ..spec import Action
 
 drag_chance = 0.4    # probability of a drag per 10s window (0..1) -- set from outside to taste
@@ -14,7 +14,7 @@ def _drag(now):
     """Progress 0..1 through this 10s window's drag, or None when just chilling. Shared by the
     gaze and the prop so the eyes and the cigarette always tell the same story."""
     win, tloc = int(now / 10), now % 10
-    if (math.sin(win * 12.9898) * 43758.5453) % 1.0 < drag_chance and tloc < _DUR:
+    if rand(win) < drag_chance and tloc < _DUR:
         return tloc / _DUR
     return None
 
@@ -31,10 +31,9 @@ def _pose(now):   # the gaze tells the story: settle to draw, lift to exhale, el
         return drift_x, drift_y, 1.0                    # raising back -> ease to rest
     # chilling: drift + the usual idle glances -- ease to a new spot every few seconds, often just resting
     slot = int(now / 3.4)                              # hold each glance ~3.4s, like the resting idle
-    rnd = lambda n: (math.sin((slot + 1) * 12.9898 + n * 78.233) * 43758.5453) % 1.0
     gx = gy = 0.0
-    if rnd(0) > 0.35:                                  # ~2/3 of slots glance somewhere, the rest rest centred
-        gx, gy = (rnd(1) * 2 - 1) * 14, (rnd(2) * 2 - 1) * 6
+    if rand(slot + 1, 0) > 0.35:                       # ~2/3 of slots glance somewhere, the rest rest centred
+        gx, gy = (rand(slot + 1, 1) * 2 - 1) * 14, (rand(slot + 1, 2) * 2 - 1) * 6
     return drift_x + gx, drift_y + gy, 1.0
 
 

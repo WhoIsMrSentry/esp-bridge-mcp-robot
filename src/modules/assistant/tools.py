@@ -48,8 +48,10 @@ def build_tools(eyes, mgr=None):
             (shipping/launching), connecting (establishing a link), listening,
             waiting (idle for input/output), smoking (a chilled break),
             glitch (a crash/corruption fit -- datamosh, scanlines, ghosting,
-            code-rain, invert flashes; good for an error/exception), sponsor
-            (a full-screen GitHub Sponsors QR with a heart), or idle to stop.
+            code-rain, invert flashes; good for an error/exception), jackpot
+            (a slot machine: the eyes spin as reels, an arm pulls, and a match
+            showers gold coins -- a fun win/celebration), sponsor (a full-screen
+            GitHub Sponsors QR with a heart), or idle to stop.
             Set it before a slow step, idle when done. Each busy activity also
             puts on a fitting face, so no need to set one too.
         """

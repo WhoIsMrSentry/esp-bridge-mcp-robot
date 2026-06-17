@@ -43,3 +43,4 @@ class Action:
     pose: Optional[Callable] = None      # fn(now) -> (gaze_x, gaze_y, height_mult)
     overlay: Optional[Callable] = None   # looping prop (d, W, H, now, ox, oy)
     expired: Optional[Callable] = None   # fn(now, start) -> True once it should end itself (else loops)
+    still: bool = False                  # hold the gaze + no spontaneous blink while it runs (jackpot reels)
