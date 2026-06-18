@@ -6,9 +6,10 @@ desktop window.
 
 <p align="center"><img src="docs/pip-eyes.gif" width="384" alt="Every Pip mood, gesture and activity"></p>
 <p align="center">
-  <img src="docs/smoking.gif" width="384" alt="Pip reacting live while Claude Code works">
   <img src="docs/zen.gif" width="384" alt="Pip in its zen mood">
+  <img src="docs/blackhole.gif" width="384" alt="Pip in its black hole activity">
 </p>
+<p align="center"><img src="docs/smoking.gif" width="384" alt="Every Pip mood, gesture and activity"></p>
 
 ## Use Pip in Claude Code
 
