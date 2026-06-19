@@ -7,6 +7,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastmcp>=3",                       # MCP server (default mode) over stdio
+    "numpy>=2.4.6",
     "ollama>=0.4",                      # local chat backend (ROBOT_MCP=false)
     "pillow>=10",                       # eye rendering, OLED-window emulator, GIF capture
     "python-dotenv>=1.0",              # .env loading

@@ -9,7 +9,6 @@ _ORDER = (
     "thinking", "scanning", "searching", "processing",           # heads-down work
     "working", "editing", "debugging", "building", "testing", "deploying",
     "connecting", "ping_pong", "listening", "waiting",           # links & holding pattern
-    "smoking",                                                    # a chilled break
     "glitch",                                                     # a crash / corruption fit
 )
 

@@ -2,7 +2,7 @@
 import math
 
 from ..primitives import rand, smoothstep
-from ..spec import Action
+from ..spec import Vibe
 
 drag_chance = 0.4    # probability of a drag per 10s window (0..1) -- set from outside to taste
 _DUR = 4.2           # one drag's length (s)
@@ -95,4 +95,4 @@ def _overlay(d, W, H, now, ox=0.0, oy=0.0):  # a lit cigarette at the lips; occa
                     d.ellipse([bx - rad, by - rad, bx + rad, by + rad], fill=1)
 
 
-ACTION = Action("smoking", mood="chill", pose=_pose, overlay=_overlay)
+VIBE = Vibe("smoking", mood="chill", pose=_pose, overlay=_overlay)

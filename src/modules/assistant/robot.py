@@ -115,7 +115,7 @@ class Robot:
             cols = [("MOODS", moods, 0),
                     ("GESTURES", gestures, nm),
                     ("REACTIONS", reactions, nm + ng),
-                    ("ACTIVITIES", activities, nm + ng + nr),
+                    ("ACTIONS", activities, nm + ng + nr),
                     ("VIBES", vibes, nm + ng + nr + na),
                     ("WIDGETS", widgets, nm + ng + nr + na + nv)]
             w = max(len(n) for _, n in items)                       # widest name
